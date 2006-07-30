@@ -48,29 +48,34 @@ module VFS
         def initialize( fs, proxy, name=nil, parent=nil )
             @fs = fs
             @proxy = proxy
-	    @name = VFS.to_path(name).dup if name
+            @name = VFS.to_path(name).dup if name
             @parent = parent
         end
 
-	def path( end_slash=false )
+        def path( end_slash=false )
             if @name
-		parentpath + @name + (end_slash ? '/' : '')
-	    else
-		parentpath
-	    end
-	end
+                parentpath + @name + (end_slash ? '/' : '')
+            else
+                parentpath
+            end
+        end
         alias :to_str :path
         alias :to_s :path
+        
+        def ==( other )
+            #other = other.to_str if other.respond_to? :str
+            self.path == other
+        end
 
-	def parentpath
-	    if @parent
-	    	loc_path = @parent.path
-            	loc_path += '/' unless /\/$/ =~ loc_path
-	    	loc_path
-	    else
-		'/'
-	    end
-	end
+        def parentpath
+            if @parent
+                loc_path = @parent.path
+                loc_path += '/' unless /\/$/ =~ loc_path
+                loc_path
+            else
+                '/'
+            end
+        end
         
         def exists?
             !@fs.overlayset( self.path ).empty? || @proxy.exists?
@@ -84,12 +89,12 @@ module VFS
         end
         
         def resolve( name )
-	    mountpath = self.path(true) + name
-	    if @fs.mount?( mountpath )
-		wrap( @fs.mount( mountpath ), name, self )
-	    else
-            	wrap( @proxy.resolve( name ), name, self )
-	    end
+            mountpath = self.path(true) + name
+            if @fs.mount?( mountpath )
+                wrap( @fs.mount( mountpath ), name, self )
+            else
+                wrap( @proxy.resolve( name ), name, self )
+            end
         end
             
         def wrap( proxy, name, parent )
@@ -97,7 +102,7 @@ module VFS
         end
         
         def method_missing( method, *args, &block )
-	    puts "Ruby is doing magic"
+            puts "Ruby is doing magic"
             @proxy.send( method, *args, &block )
         end
         private :method_missing
@@ -113,26 +118,26 @@ module VFS
             @overlays = {} # path => set
         end
       
-	# mount also adds all parent paths to @entries
+        # mount also adds all parent paths to @entries
         def mount( path, rootfile=nil )
             path = VFS.cleanpath(path)
-	    if @rootfile.nil?
-		return @mounts[path]
+            if @rootfile.nil?
+                return @mounts[path]
             end
-	    @mounts[path] = OverlayFileObject.new( self, rootfile )
-	    names = []
-	    path.scan(%r{[^/]+}) {|name|
+            @mounts[path] = OverlayFileObject.new( self, rootfile )
+            names = []
+            path.scan(%r{[^/]+}) {|name|
                 overlay_path = '/' + names.join('/')
                 @overlays[overlay_path] = [].to_set unless @overlays[overlay_path]
                 @overlays[overlay_path].add name
                 puts "#{entryname} => #{name}"
                 names << name
             }
-	end
+        end
 
-	def mount?( path )
-	    @mounts.has_key?(path)
-	end    
+        def mount?( path )
+            @mounts.has_key?(path)
+        end    
       
         def unmount( path )
             path = path.path if path.respond_to? :path
@@ -146,11 +151,11 @@ module VFS
             overlay ? overlay : [].to_set
         end
       
-	# Never fails if arguments are valid
+        # Never fails if arguments are valid
         def lookup( path, basepath="/" )
             path = VFS.to_path(path)
             if !VFS.absolute?(path)
-            	basepath = basepath.path if basepath.respond_to? :path
+                basepath = basepath.path if basepath.respond_to? :path
                 basepath = VFS.cleanpath( basepath )
                 basepath += "/" unless /\/$/ =~ basepath
                 path = basepath + path
@@ -158,9 +163,9 @@ module VFS
             path = VFS.cleanpath( path )
             
             fileobj = @mounts['/']
-		
+                
             # tokenize on / and resolve the name.
-	    # We need to do it this way because a fileobject is resposibly for all of the leafs below it.
+            # We need to do it this way because a fileobject is resposibly for all of the leafs below it.
             # Only the fileobject knows how to proceed 
             path.scan(%r{[^/]+}) {|name|
                 fileobj = fileobj.resolve(name)
@@ -179,10 +184,10 @@ module VFS
     end
 
     class FSFileObject < FSBaseFileObject
-	def initialize( name, fs_parent )
-	    @name = name
-	    @fs_parent = fs_parent
-	end
+        def initialize( name, fs_parent )
+            @name = name
+            @fs_parent = fs_parent
+        end
 
         def fs_filepath
             (@fs_parent ? @fs_parent.fs_filepath : "" ) + File::SEPARATOR + @name
@@ -191,7 +196,7 @@ module VFS
     
     class FSFileRoot < FSBaseFileObject
         def initialize( rootpath )
-            @rootpath = VFS.cleanpath( rootpath )
+            @rootpath = VFS.to_path( rootpath )
             self.taint if @rootpath.tainted?
         end
        
@@ -232,13 +237,6 @@ module VFS
     end
 end
 
-
-def test( names )
-#    return absolute ? '/' : '.' if names.empty?
-    path = '/'
-    path << names.join('/')
-end
-
 module VFS
     class FSBaseFileObject
         def directory?() File.directory?( self.fs_filepath ) end
@@ -254,27 +252,36 @@ module VFS
     end
 end
 
-module TestI
-  include VFS
+if $0 == __FILE__
+    def test( names )
+    #    return absolute ? '/' : '.' if names.empty?
+        path = '/'
+        path << names.join('/')
+    end
+
+    module TestI
+      include VFS
+    end
+
+    t = TestI::FileSystem.new( VFS::FSFileRoot.new("/tmp"))
+    #TestI.new
+    #t = VFS::FileSystem.new( VFS::FSFileRoot.new("/Users/griff/Pictures"))
+    t.mount( '/test/molla', VFS::FSFileRoot.new('/Users/griff/Music') )
+    t.mount( '/molla/ff', VFS::FSFileRoot.new('/Users/griff/Music') )
+    puts t.overlayset('/')
+    puts t.lookup( "").directory?
+    puts t.lookup( "").entries
+    puts "Next"
+    puts t.lookup("/heelo/../../../test")
+    puts "Next"
+    puts t.lookup( "/heelo/../../../test", "/per/ppf")
+    puts t.lookup( "/heelo/../../../test", "/per/ppf/")
+    puts t.lookup( "heelo/../../../test", "/per/ppf")
+    puts t.lookup( "heelo/../../test", "/per/ppf/")
+    puts t.lookup( "/heelo/../../../test", "per/ppf").fs_filepath
+
+    ".././Heet/..\\nkll/Hell/../../../".scan(%r{[^/]+}) { |name|
+      puts "File: #{name}"
+    }
 end
-
-t = TestI::FileSystem.new( VFS::FSFileRoot.new("/tmp"))
-#TestI.new
-#t = VFS::FileSystem.new( VFS::FSFileRoot.new("/Users/griff/Pictures"))
-t.mount( '/test/molla', VFS::FSFileRoot.new('/Users/griff/Music') )
-t.mount( '/molla/ff', VFS::FSFileRoot.new('/Users/griff/Music') )
-puts t.overlayset('/')
-puts t.lookup( "").directory?
-puts t.lookup( "").entries
-puts "Next"
-puts t.lookup("/heelo/../../../test")
-puts "Next"
-puts t.lookup( "/heelo/../../../test", "/per/ppf")
-puts t.lookup( "/heelo/../../../test", "/per/ppf/")
-puts t.lookup( "heelo/../../../test", "/per/ppf")
-puts t.lookup( "heelo/../../test", "/per/ppf/")
-puts t.lookup( "/heelo/../../../test", "per/ppf").fs_filepath
-
-".././Heet/..\\nkll/Hell/../../../".scan(%r{[^/]+}) { |name|
-  puts "File: #{name}"
-}
+# vim: sts=4:sw=4:ts=4:et
