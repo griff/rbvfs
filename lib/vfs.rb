@@ -1,5 +1,20 @@
+#
+# = vfs.rb
+#
+# Object-Oriented Extendable Virtual Filesystem
+#
+# Author:: Brian Olsen <griff@maven-group.org>
+# Documentation:: Author and Christian Theil Have
+#
+# For documentation, see module VFS.
+#
 require 'set'
 
+#
+# == VFS
+#
+# Extendable Virtual File System
+# 
 module VFS
     
     # Convert a object (path) to a str (if you can ;-)
