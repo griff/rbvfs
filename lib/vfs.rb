@@ -92,14 +92,13 @@ module VFS
             end
         end
         
-        def exists?
-            !@fs.overlayset( self.path ).empty? || @proxy.exists?
+        def exist?
+            !@fs.overlayset( self.path ).empty? || @proxy.exist?
         end
-        alias :exist? :exists?
         
         def entries
             overlays = @fs.overlayset( self.path )
-            overlays.merge( @proxy.entries ) if overlays.empty? || (@proxy.exists? && @proxy.directory?)
+            overlays.merge( @proxy.entries )
             overlays.to_a
         end
         
@@ -253,17 +252,142 @@ module VFS
 end
 
 module VFS
-    class FSBaseFileObject
-        def directory?() File.directory?( self.fs_filepath ) end
+    class FSBaseFileObject # * FileTest *
+        # See <tt>FileTest.executable?</tt>.
+        def executable?() FileTest.executable?( fs_filepath ) end
 
-        def file?() File.file?( fs_filepath ) end
+        # See <tt>FileTest.executable_real?</tt>.
+        def executable_real?() FileTest.executable_real?( fs_filepath ) end
 
-        def exists?() File.exists?( self.fs_filepath ) end
-        alias exist? exists?
+        # See <tt>FileTest.exist?</tt>.
+        def exist?() FileTest.exist?( fs_filepath ) end
 
-        def entries() Dir.entries( fs_filepath ) end
+        # See <tt>FileTest.grpowned?</tt>.
+        def grpowned?() FileTest.grpowned?( fs_filepath ) end
 
-        def foreach(&block) Dir.foreach(fs_filepath, &block) end
+        # See <tt>FileTest.directory?</tt>.
+        def directory?() FileTest.directory?( fs_filepath ) end
+
+        # See <tt>FileTest.file?</tt>.
+        def file?() FileTest.file?( fs_filepath ) end
+
+        # See <tt>FileTest.pipe?</tt>.
+        def pipe?() FileTest.pipe?( fs_filepath ) end
+
+        # See <tt>FileTest.socket?</tt>.
+        def socket?() FileTest.socket?( fs_filepath ) end
+
+        # See <tt>FileTest.owned?</tt>.
+        def owned?() FileTest.owned?( fs_filepath ) end
+
+        # See <tt>FileTest.readable?</tt>.
+        def readable?() FileTest.readable?( fs_filepath ) end
+
+        # See <tt>FileTest.readable_real?</tt>.
+        def readable_real?() FileTest.readable_real?( fs_filepath ) end
+
+        # See <tt>FileTest.setuid?</tt>.
+        def setuid?() FileTest.setuid?( fs_filepath ) end
+
+        # See <tt>FileTest.setgid?</tt>.
+        def setgid?() FileTest.setgid?( fs_filepath ) end
+
+        # See <tt>FileTest.size</tt>.
+        def size() FileTest.size( fs_filepath ) end
+
+        # See <tt>FileTest.size?</tt>.
+        def size?() FileTest.size?( fs_filepath ) end
+
+        # See <tt>FileTest.sticky?</tt>.
+        def sticky?() FileTest.sticky?( fs_filepath ) end
+
+        # See <tt>FileTest.symlink?</tt>.
+        def symlink?() FileTest.symlink?( fs_filepath ) end
+
+        # See <tt>FileTest.writable?</tt>.
+        def writable?() FileTest.writable?( fs_filepath ) end
+
+        # See <tt>FileTest.writable_real?</tt>.
+        def writable_real?() FileTest.writable_real?( fs_filepath ) end
+
+        # See <tt>FileTest.zero?</tt>.
+        def zero?() FileTest.zero?( fs_filepath ) end
+    end
+end
+
+module VFS
+    class FSBaseFileObject    # * Dir *
+        # Return the entries (files and subdirectories) in the directory, each as a
+        # String. See <tt>Dir.entries</tt>. With the difference that if the referenced 
+        # path doesn't exist or isn't a directory this method will simple return ['.', '..']
+        def entries() File.directory? ? Dir.entries( fs_filepath ) : ['.', '..'] end
+
+        # Iterates over the entries (files and subdirectories) in the directory.  It
+        # yields a Pathname object for each entry.
+        def each_entry( &block )  # :yield: p
+            entries.each( &block )
+        end
+
+        # See <tt>Dir.mkdir</tt>.  Create the referenced directory.
+        def mkdir(*args) Dir.mkdir( fs_filepath, *args) end
+
+        # See <tt>Dir.rmdir</tt>.  Remove the referenced directory.
+        def rmdir() Dir.rmdir( fs_filepath ) end
+    end
+end
+
+module VFS
+    class FSBaseFileObject    # * Find *
+        #
+        # Pathname#find is an iterator to traverse a directory tree in a depth first
+        # manner.  It yields a Pathname for each file under "this" directory.
+        #
+        # Since it is implemented by <tt>find.rb</tt>, <tt>Find.prune</tt> can be used
+        # to control the traverse.
+        #
+        # If +self+ is <tt>.</tt>, yielded pathnames begin with a filename in the
+        # current directory, not <tt>./</tt>.
+        #
+        def find(&block) # :yield: p
+            require 'find'
+            Find.find( fs_filepath, &block ) }
+        end
+    end
+end
+
+module VFS
+    class FSBaseFileObject    # * FileUtils *
+        # See <tt>FileUtils.mkpath</tt>.  Creates a full path, including any
+        # intermediate directories that don't yet exist.
+        def mkpath
+          require 'fileutils'
+          FileUtils.mkpath( fs_filepath )
+          nil
+        end
+
+        # See <tt>FileUtils.rm_r</tt>.  Deletes a directory and all beneath it.
+        def rmtree
+          # The name "rmtree" is borrowed from File::Path of Perl.
+          # File::Path provides "mkpath" and "rmtree".
+          require 'fileutils'
+          FileUtils.rm_r( fs_filepath )
+          nil
+        end
+    end
+end
+
+module VFS
+    class FSBaseFileObject    # * mixed *
+        # Removes a file or directory, using <tt>File.unlink</tt> or
+        # <tt>Dir.unlink</tt> as necessary.
+        def unlink()
+            begin
+                Dir.unlink @path
+            rescue Errno::ENOTDIR
+                File.unlink @path
+            end
+        end
+        alias delete unlink
     end
 end
 
