@@ -1,4 +1,3 @@
-#
 # = vfs.rb
 #
 # Object-Oriented Extendable Virtual Filesystem
@@ -320,7 +319,7 @@ module VFS
         # Return the entries (files and subdirectories) in the directory, each as a
         # String. See <tt>Dir.entries</tt>. With the difference that if the referenced 
         # path doesn't exist or isn't a directory this method will simple return ['.', '..']
-        def entries() File.directory? ? Dir.entries( fs_filepath ) : ['.', '..'] end
+        def entries() File.directory?(fs_filepath) ? Dir.entries( fs_filepath ) : ['..', '.'] end
 
         # Iterates over the entries (files and subdirectories) in the directory.  It
         # yields a Pathname object for each entry.
@@ -350,7 +349,7 @@ module VFS
         #
         def find(&block) # :yield: p
             require 'find'
-            Find.find( fs_filepath, &block ) }
+            Find.find( fs_filepath, &block ) 
         end
     end
 end
@@ -423,4 +422,5 @@ if $0 == __FILE__
       puts "File: #{name}"
     }
 end
+
 # vim: sts=4:sw=4:ts=4:et
