@@ -26,22 +26,22 @@ module WEBrick
       end
 
       def do_GET(req, res)
-        st = @filesystem.meta(@filesystem.pwd)
-        mtime = st.getlastmodified
-        res['etag'] = sprintf("%x-%x-%x", st.getinode, st.getcontentlength, mtime.to_i)
-
-        if not_modified?(req, res, mtime, res['etag'])
+        file = nil # Get Correct File Object
+        meta = file.meta
+        res['etag'] = meta.etag
+        lastmodified = meata.lastmodified
+        if not_modified?(req, res, lastmodified, res['etag'])
           res.body = ''
           raise HTTPStatus::NotModified
         elsif req['range'] 
-          make_partial_content(req, res, @local_path, st.getcontentlength)
+          make_partial_content(req, res, @local_path, meta.contentlength)
           raise HTTPStatus::PartialContent
         else
           mtype = HTTPUtils::mime_type(@local_path, @config[:MimeTypes])
-          res['content-type'] = mtype
-          res['content-length'] = st.size
-          res['last-modified'] = mtime.httpdate
-          res.body = filesystem.openfile(@local_path, "rb")
+          res['content-type'] = meta.contenttype
+          res['content-length'] = meta.contentlength
+          res['last-modified'] = lastmodified.httpdate
+          res.body = file.open(@local_path, "rb")
         end
       end
 

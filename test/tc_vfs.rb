@@ -4,7 +4,7 @@ require 'test/unit'
 require 'vfs'
 class TestVFS < Test::Unit::TestCase
     def test_root
-        fs = VFS::FileSystem.new( VFS::FSFileRoot.new( File.join( $root, 'tmp' ) ) )
+        fs = VFS::FileSystem.new( VFS::File::Root.new( File.join( $root, 'tmp' ) ) )
         rootfo = fs.lookup( '/' )
         assert_equal( rootfo, '/' )
         assert_equal( '/', rootfo )
