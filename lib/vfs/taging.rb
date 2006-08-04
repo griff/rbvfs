@@ -2,22 +2,23 @@
 #
 #  Created by Brian Olsen on 2006-08-03.
 #  Copyright (c) 2006. All rights reserved.
+require 'vfs'
 require 'active_record'
 
 module VFS
     module Tagging
-        class TagBaseFileObject < BaseFileObject
+        class BaseNode < VFS::BaseNode
             def resolve( name )
-                TagFileObject.new( @fs, name, self )
+                Node.new( @fs, name, self )
             end
         end
     
-        class TagFileObject  < TagBaseFileObject
+        class Node  < BaseNode
         end
         
-        class FilesFO 
-            def entries
-                File.find(:all).map! {|file| file.name }
+        class FilesFO < BaseNode 
+            def each(&block)
+                File.find(:all).each(&block)
             end
             
             def resolve( name )
@@ -26,8 +27,6 @@ module VFS
         end
         
         class FileFO
-            def entries() [] end
-            
             def loadData
                 @file = File.find_by_name(@name)
             end

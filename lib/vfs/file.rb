@@ -42,9 +42,9 @@ module VFS
             end
             
             def fs_filepath
-                loc_path = @parent.fs_filepath + ::cdFile::SEPERATOR + @name
-#                loc_path += ::File::SEPERATOR unless %r{File::SEPERATOR$} =~ loc_path
-#                loc_path + @name
+                loc_path = @parent.fs_filepath # + ::File::SEPARATOR + @name
+                loc_path += ::File::SEPARATOR unless %r{File::SEPARATOR$} =~ loc_path
+                loc_path + @name
             end
         end
         
