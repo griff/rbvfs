@@ -7,7 +7,9 @@ module VFS
     # See <tt>VFS::NopMeta.file_path</tt>.
     class BaseMeta
         # See <tt>File.atime</tt>.
-        def atime() File.atime( file_path ) end
+        def atime() File.atime( file_path ) end 
+	alias :lastaccessed :atime
+	alias :getlastaccessed :atime
         
         # See <tt>File.ctime</tt>.
         def ctime() File.ctime( file_path ) end
