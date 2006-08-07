@@ -27,8 +27,17 @@ module VFS
         end
         
         class FileFO
+            def initialize( name, parent )
+                @name = name
+                @parent = parent
+            end
+            
             def loadData
                 @file = File.find_by_name(@name)
+            end
+            
+            def open( mode="r" )
+                
             end
         end
 
