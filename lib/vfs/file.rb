@@ -19,6 +19,10 @@ module VFS
                 FileTest.directory?(fs_filepath) ? Dir.foreach( fs_filepath, &block ) : super
             end
 
+            def mkdir
+                Dir.mkdir( fs_filepath )
+            end
+
             def meta() Meta.new( self ) end
 
             def open( mode="r", &block )

@@ -9,7 +9,11 @@ module VFS
         # See <tt>File.atime</tt>.
         def atime() File.atime( file_path ) end 
         alias :lastaccessed :atime
-        alias :getlastaccessed :atime
+        
+        def atime=( other )
+            File.utime( other, File.mtime( file_path ), file_path )
+        end
+        alias :lastaccessed= :atime=
         
         # See <tt>File.ctime</tt>.
         def ctime() File.ctime( file_path ) end
@@ -33,10 +37,10 @@ module VFS
         alias :getcontentlength :size
             
         # See <tt>File.size?</tt>.
-        def size?() File.size?( file_path ) end
+        def size?() size unless zero end
             
         # See <tt>File.zero</tt>.
-        def zero() File.zero( file_path ) end
+        def zero() size() == 0 end
 
         def etag
             st = File.stat( file_path )
@@ -60,9 +64,29 @@ module VFS
             @parent = parent
         end
         
-        def path( end_slash=false )
+        def fs() @parent.fs() end
+            
+        def mkdir
+            if exists?
+                raise Errno::EEXIST
+            else
+                raise Errno::EACCES
+            end
+        end
+
+        def open( mode="r" )
+            throw Errno::EACCES
+        end        
+        
+        def path( trail_slash=false )
+            if @parent
+                parentpath = @parent.path
+                parentpath += '/' unless /\/$/ =~ parentpath
+            else
+                parentpath = '/'
+            end
             if @name
-                parentpath + @name + (end_slash ? '/' : '')
+                parentpath + @name + (trail_slash ? '/' : '')
             else
                 parentpath
             end
@@ -70,18 +94,9 @@ module VFS
         alias :to_str :path
         alias :to_s :path
 
-        def parentpath
-            if @parent
-                loc_path = @parent.path
-                loc_path += '/' unless /\/$/ =~ loc_path
-                loc_path
-            else
-                '/'
-            end
-        end
-        
         def +(other)
-            @fs.lookup( other, self )
+            other = other.to_str if other.respond_to? :to_str
+            @fs.lookup( self.path(true) + other )
         end
         
         def ==( other )
@@ -114,12 +129,8 @@ module VFS
     end
     
     class NopNode < BaseNode
-        def meta() NopMeta.new() end
+        def meta() NopMeta.new() if exists? end
             
-        def open( mode="r" )
-            throw Errno::ENOENT
-        end
-        
         def resolve( name ) NopNode.new( name, self ) end
     end
     
@@ -138,6 +149,9 @@ module VFS
             
         # See <tt>File.mtime</tt>.
         def mtime() Time.now end
+            
+        # See <tt>File.size</tt>.
+        def size() 0 end
     end
         
     # The Root mixin module gives you an easy way to get methods common to all root nodes.
@@ -148,6 +162,8 @@ module VFS
             @name = name
             @parent = parent
         end
+        
+        def fs() @fs end
     end
 end
 # vim: sts=4:sw=4:ts=4:et

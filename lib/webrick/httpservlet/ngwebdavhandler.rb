@@ -262,7 +262,7 @@ class WebDAVHandler < FileHandler
         e.namespace.nil? || e.namespace == "DAV:" or raise Unsupported
         case e.name
         when "getlastmodified"
-          File.utime(Time.now, Time.httpdate(e.text), res.filename)
+          res.filename.meta.lastmodified = Time.httpdate(e.text)
         else
           raise Unsupported
         end
@@ -285,7 +285,7 @@ class WebDAVHandler < FileHandler
     req.body.nil? or raise HTTPStatus::MethodNotAllowed
     begin
       @logger.debug "mkdir #{@root+req.path_info}"
-      Dir.mkdir(@root + req.path_info)
+      @filesystem.lookup(req.path_info).mkdir
     rescue Errno::ENOENT, Errno::EACCES
       raise HTTPStatus::Forbidden
     rescue Errno::ENOSPC
@@ -300,7 +300,7 @@ class WebDAVHandler < FileHandler
     map_filename(req, res)
     begin
       @logger.debug "rm_rf #{res.filename}"
-      FileUtils.rm_rf(res.filename)
+      res.filename.rm_rf
     rescue Errno::EPERM
       raise HTTPStatus::Forbidden
     #rescue
@@ -311,7 +311,7 @@ class WebDAVHandler < FileHandler
   end
 
   def do_PUT(req, res)
-    file = @root + req.path_info
+    file = @filesystem.lookup(req.path_info)
     if req['range']
       ranges = HTTPUtils::parse_range_header(req['range']) or
         raise HTTPStatus::BadRequest,
@@ -323,7 +323,7 @@ class WebDAVHandler < FileHandler
     end
 
     begin
-      File.open(file, "w+") {|f|
+      file.open("w+") {|f|
         if ranges
           # TODO: supports multiple range
           ranges.each{|range|
@@ -349,18 +349,19 @@ class WebDAVHandler < FileHandler
     @logger.debug "copy #{src} -> #{dest}"
     begin
       if depth.nil? # infinity
-        FileUtils.cp_r(src, dest, {:preserve => true})
+        FileUtils.cp_r(src, dest, {:preserve => true}) # todo: fix this
       elsif depth == 0
-        if File.directory?(src)
-          st = File.stat(src)
-          Dir.mkdir(dest)
+        if src.directory?
+          meta = src.meta
+          dest.mkdir
           begin
-            File.utime(st.atime, st.mtime, dest)
+            dest.meta.lastmodified = src.meta.lastmodified
+            dest.meta.lastaccessed = src.meta.lastaccessed
           rescue
             # simply ignore
           end
         else
-          FileUtils.cp(src, dest, {:preserve => true})
+          FileUtils.cp(src, dest, {:preserve => true}) # todo: fix this
         end
       end
     rescue Errno::ENOENT
@@ -377,7 +378,7 @@ class WebDAVHandler < FileHandler
     src, dest, depth, exists_p = cp_mv_precheck(req, res)
     @logger.debug "rename #{src} -> #{dest}"
     begin
-      File.rename(src, dest)
+      File.rename(src, dest) # todo: fix this
     rescue Errno::ENOENT
       raise HTTPStatus::Conflict
       # FIXME: use multi status(?) and check error URL.
@@ -413,17 +414,17 @@ class WebDAVHandler < FileHandler
       raise HTTPStatus::BadGateway
       # TODO: anyone needs to copy other server?
     end
-    src  = @root + req.path_info
-    dest = @root + resolv_destpath(req)
+    src  = @filesystem.lookup(req.path_info)
+    dest = @filesystem.lookup(resolv_destpath(req))
 
     src == dest and raise HTTPStatus::Forbidden
 
     exists_p = false
-    if File.exists?(dest)
+    if dest.exists?
       exists_p = true
       if req["Overwrite"] == "T"
         @logger.debug "copy/move precheck: Overwrite flug=T, deleteing #{dest}"
-        FileUtils.rm_rf(dest)
+        FileUtils.rm_rf(dest) # todo: fix this
       else
         raise HTTPStatus::PreconditionFailed
       end
@@ -456,7 +457,7 @@ class WebDAVHandler < FileHandler
   end
 
   def map_filename(req, res)
-    raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @root
+    raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @filesystem
     set_filename(req, res)
   end
 
@@ -480,13 +481,13 @@ class WebDAVHandler < FileHandler
     depth -= 1
     ret_set << [r_uri, get_propstat(req, res, file, props)]
     @logger.debug "get prop file='#{file}' depth=#{depth}"
-    return ret_set if !(File.directory?(file) && depth >= 0)
-    Dir.entries(file).each {|d|
+    return ret_set if !(file.directory? && depth >= 0)
+    file.entries.each {|d|
       d == ".." || d == "." and next
       (@options[:NondisclosureName]+@options[:NotInListName]).find {|pat|
         File.fnmatch(pat, d) } and next
-      if File.directory?("#{file}/#{d}")
-        ret_set += get_rec_prop(req, res, "#{file}/#{d}",
+      if (file + d).directory?
+        ret_set += get_rec_prop(req, res, file + d,
                                 HTTPUtils.normalize_path(
                                   r_uri+HTTPUtils.escape(
                                     codeconv_str_fscode2utf("/#{d}/"))),
@@ -495,7 +496,7 @@ class WebDAVHandler < FileHandler
         ret_set << [HTTPUtils.normalize_path(
                       r_uri+HTTPUtils.escape(
                         codeconv_str_fscode2utf("/#{d}"))),
-          get_propstat(req, res, "#{file}/#{d}", props)]
+          get_propstat(req, res, file + d, props)]
       end
     }
     ret_set
@@ -505,12 +506,12 @@ class WebDAVHandler < FileHandler
     propstat = REXML::Element.new "D:propstat"
     errstat = {}
     begin
-      st = File::lstat(file)
+      meta = file.meta
       pe = REXML::Element.new "D:prop"
       props.each {|pname|
         begin 
           if respond_to?("get_prop_#{pname}", true)
-            pe << __send__("get_prop_#{pname}", file, st)
+            pe << __send__("get_prop_#{pname}", file, meta)
           else
             raise HTTPStatus::NotFound
           end
@@ -529,33 +530,33 @@ class WebDAVHandler < FileHandler
   end
 
   def get_prop_creationdate(file, st)
-    gen_element "D:creationdate", st.ctime.xmlschema
+    gen_element "D:creationdate", st.creationdate.xmlschema
   end
 
   def get_prop_getlastmodified(file, st)
-    gen_element "D:getlastmodified", st.mtime.httpdate
+    gen_element "D:getlastmodified", st.getlastmodified.httpdate
   end
 
   def get_prop_getetag(file, st)
-    gen_element "D:getetag", sprintf('%x-%x-%x', st.ino, st.size, st.mtime.to_i)
+    gen_element "D:getetag", st.getetag
   end
 
   def get_prop_resourcetype(file, st)
     t = gen_element "D:resourcetype"
-    File.directory?(file) and t.add_element("D:collection")
+    file.directory? and t.add_element("D:collection")
     t
   end
 
   def get_prop_getcontenttype(file, st)
     gen_element("D:getcontenttype",
-                File.file?(file) ?
+                file.file? ?
                   HTTPUtils::mime_type(file, @config[:MimeTypes]) :
                   "httpd/unix-directory")
   end
 
   def get_prop_getcontentlength(file, st)
-    File.file?(file) or raise HTTPStatus::NotFound
-    gen_element "D:getcontentlength", st.size
+    file.file? or raise HTTPStatus::NotFound
+    gen_element "D:getcontentlength", st.getcontentlength
   end
 
   def elem_multistat

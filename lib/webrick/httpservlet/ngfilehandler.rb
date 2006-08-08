@@ -25,9 +25,9 @@ module WEBrick
       end
 
       def do_GET(req, res)
-        st = File::stat(@local_path)
-        mtime = st.mtime
-        res['etag'] = sprintf("%x-%x-%x", st.ino, st.size, st.mtime.to_i)
+        meta = @local_path.meta
+        mtime = meta.lastmodified
+        res['etag'] = meta.etag
 
         if not_modified?(req, res, mtime, res['etag'])
           res.body = ''
@@ -38,7 +38,7 @@ module WEBrick
         else
           mtype = HTTPUtils::mime_type(@local_path, @config[:MimeTypes])
           res['content-type'] = mtype
-          res['content-length'] = st.size
+          res['content-length'] = meta.size
           res['last-modified'] = mtime.httpdate
           res.body = open(@local_path, "rb")
         end
@@ -75,7 +75,7 @@ module WEBrick
           raise HTTPStatus::BadRequest,
             "Unrecognized range-spec: \"#{req['range']}\""
         end
-        open(filename, "rb"){|io|
+        filename.open("rb"){|io|
           if ranges.size > 1
             time = Time.now
             boundary = "#{time.sec}_#{time.usec}_#{Process::pid}"
@@ -139,7 +139,8 @@ module WEBrick
       def initialize(server, root, options={}, default=Config::FileHandler)
         @config = server.config
         @logger = @config[:Logger]
-        @root = File.expand_path(root)
+        #@root = File.expand_path(root)
+        @filesystem = root # inserted
         if options == true || options == false
           options = { :FancyIndexing => options }
         end
@@ -199,7 +200,7 @@ module WEBrick
       private
 
       def exec_handler(req, res)
-        raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @root
+        raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @filesystem
         if set_filename(req, res)
           handler = get_handler(req)
           call_callback(:HandlerCallback, req, res)
@@ -221,14 +222,14 @@ module WEBrick
       end
 
       def set_filename(req, res)
-        res.filename = @root.dup
+        res.filename = @filesystem.lookup('/')
         path_info = VFS::cleanpath(req.path_info).scan(%r|/[^/]*|)
 
         path_info.unshift("")  # dummy for checking @root dir
         while base = path_info.first
           check_filename(req, res, base)
           break if base == "/"
-          break unless File.directory?(res.filename + base)
+          break unless (res.filename + base).directory?
           shift_path_info(req, res, path_info)
           call_callback(:DirectoryCallback, req, res)
         end
@@ -268,7 +269,7 @@ module WEBrick
         base = base || tmp
         req.path_info = path_info.join
         req.script_name << base
-        res.filename << base
+        res.filename = res.filename + base
       end
 
       def search_index_file(req, res)
@@ -283,18 +284,18 @@ module WEBrick
       def search_file(req, res, basename)
         langs = @options[:AcceptableLanguages]
         path = res.filename + basename
-        if File.file?(path)
+        if path.file?
           return basename
         elsif langs.size > 0
           req.accept_language.each{|lang|
             path_with_lang = path + ".#{lang}"
-            if langs.member?(lang) && File.file?(path_with_lang)
+            if langs.member?(lang) && path_with_lang.file?
               return basename + ".#{lang}"
             end
           }
           (langs - req.accept_language).each{|lang|
             path_with_lang = path + ".#{lang}"
-            if File.file?(path_with_lang)
+            if path_with_lang.file?
               return basename + ".#{lang}"
             end
           }
@@ -323,16 +324,17 @@ module WEBrick
           raise HTTPStatus::Forbidden, "no access permission to `#{req.path}'"
         end
         local_path = res.filename
-        list = Dir::entries(local_path).collect{|name|
+        list = local_path.entries.collect{|name|
           next if name == "." || name == ".."
           next if nondisclosure_name?(name)
-          st = (File::stat(local_path + name) rescue nil)
-          if st.nil?
+          local_file = local_path + name
+          meta = local_file.meta
+          if meta.nil?
             [ name, nil, -1 ]
-          elsif st.directory?
-            [ name + "/", st.mtime, -1 ]
+          elsif local_file.directory?
+            [ name + "/", meta.lastmodified, -1 ]
           else
-            [ name, st.mtime, st.size ]
+            [ name, meta.lastmodified, meta.contentlength ]
           end
         }
         list.compact!
@@ -366,7 +368,7 @@ module WEBrick
         res.body << "<A HREF=\"?S=#{d1}\">Size</A>\n"
         res.body << "<HR>\n"
        
-        list.unshift [ "..", File::mtime(local_path+".."), -1 ]
+        list.unshift [ "..", (local_path+"..").meta.lastmodified, -1 ]
         list.each{ |name, time, size|
           if name == ".."
             dname = "Parent Directory"
