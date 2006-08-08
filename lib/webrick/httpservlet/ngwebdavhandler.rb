@@ -30,7 +30,7 @@ module WEBrick
       :NotInListName           => %w(.*),
       :NondisclosureName       => %w(.ht*),
     }
-    WebDAVHandler = FileHandler.merge(webdavconf)
+    VFSWebDAVHandler = FileHandler.merge(webdavconf)
   end
 
   module HTTPStatus
@@ -74,7 +74,7 @@ module WEBrick
 end # WEBrick
 
 module WEBrick; module HTTPServlet;
-class WebDAVHandler < FileHandler
+class VFSWebDAVHandler < VFSFileHandler
   class Unsupported < NotImplementedError; end
   class IgnoreProp  < StandardError; end
 
@@ -122,7 +122,7 @@ class WebDAVHandler < FileHandler
       end
     end # Detector
   
-    def initialize(options={}, default=Config::WebDAVHandler)
+    def initialize(options={}, default=Config::VFSWebDAVHandler)
       @options = default.merge(options)
       @detect_meth = [:default, :chk_utf8, :dav_ua, :chk_os]
       @enc_score   = Hash.new(0)
@@ -177,7 +177,7 @@ class WebDAVHandler < FileHandler
     end
   end # CodeConvFilter
 
-  def initialize(server, root, options={}, default=Config::WebDAVHandler)
+  def initialize(server, root, options={}, default=Config::VFSWebDAVHandler)
     super
     @cconv = CodeConvFilter.new(@options)
   end
@@ -580,6 +580,6 @@ class WebDAVHandler < FileHandler
     end
   end
 
-end # WebDAVHandler
+end # VFSWebDAVHandler
 end; end # HTTPServlet; WEBrick
 # vim: sts=4:sw=4:ts=4:et

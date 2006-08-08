@@ -18,7 +18,7 @@ require 'webrick/httpstatus'
 module WEBrick
   module HTTPServlet
 
-    class DefaultFileHandler < AbstractServlet
+    class DefaultVFSFileHandler < AbstractServlet
       def initialize(server, local_path)
         super
         @local_path = local_path
@@ -125,7 +125,7 @@ module WEBrick
       end
     end
 
-    class FileHandler < AbstractServlet
+    class VFSFileHandler < AbstractServlet
       HandlerTable = Hash.new
 
       def self.add_handler(suffix, handler)
@@ -218,7 +218,7 @@ module WEBrick
         handler_table = @options[:HandlerTable]
         return handler_table[suffix1] || handler_table[suffix2] ||
                HandlerTable[suffix1] || HandlerTable[suffix2] ||
-               DefaultFileHandler
+               DefaultVFSFileHandler
       end
 
       def set_filename(req, res)
