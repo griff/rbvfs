@@ -18,30 +18,29 @@ require 'webrick/httpstatus'
 module WEBrick
   module HTTPServlet
 
-    class DefaultNGFileHandler < AbstractServlet
-      def initialize(server, filesystem, local_path)
+    class DefaultFileHandler < AbstractServlet
+      def initialize(server, local_path)
         super
-        @filesystem = filesystem
         @local_path = local_path
       end
 
       def do_GET(req, res)
-        file = nil # Get Correct File Object
-        meta = file.meta
-        res['etag'] = meta.etag
-        lastmodified = meata.lastmodified
-        if not_modified?(req, res, lastmodified, res['etag'])
+        st = File::stat(@local_path)
+        mtime = st.mtime
+        res['etag'] = sprintf("%x-%x-%x", st.ino, st.size, st.mtime.to_i)
+
+        if not_modified?(req, res, mtime, res['etag'])
           res.body = ''
           raise HTTPStatus::NotModified
         elsif req['range'] 
-          make_partial_content(req, res, @local_path, meta.contentlength)
+          make_partial_content(req, res, @local_path, st.size)
           raise HTTPStatus::PartialContent
         else
           mtype = HTTPUtils::mime_type(@local_path, @config[:MimeTypes])
-          res['content-type'] = meta.contenttype
-          res['content-length'] = meta.contentlength
-          res['last-modified'] = lastmodified.httpdate
-          res.body = file.open(@local_path, "rb")
+          res['content-type'] = mtype
+          res['content-length'] = st.size
+          res['last-modified'] = mtime.httpdate
+          res.body = open(@local_path, "rb")
         end
       end
 
@@ -137,10 +136,10 @@ module WEBrick
         HandlerTable.delete(suffix)
       end
 
-      def initialize(server, filesystem, options={}, default=Config::FileHandler)
+      def initialize(server, root, options={}, default=Config::FileHandler)
         @config = server.config
         @logger = @config[:Logger]
-        @filesystem = filesystem 
+        @root = File.expand_path(root)
         if options == true || options == false
           options = { :FancyIndexing => options }
         end
@@ -218,18 +217,18 @@ module WEBrick
         handler_table = @options[:HandlerTable]
         return handler_table[suffix1] || handler_table[suffix2] ||
                HandlerTable[suffix1] || HandlerTable[suffix2] ||
-               DefaultNGFileHandler
+               DefaultFileHandler
       end
 
       def set_filename(req, res)
-        res.filename = @filesystem.pwd
-        path_info = req.path_info.scan(%r|/[^/]*|)
+        res.filename = @root.dup
+        path_info = VFS::cleanpath(req.path_info).scan(%r|/[^/]*|)
 
         path_info.unshift("")  # dummy for checking @root dir
         while base = path_info.first
           check_filename(req, res, base)
           break if base == "/"
-          break unless @filesystem.directory?(base)
+          break unless File.directory?(res.filename + base)
           shift_path_info(req, res, path_info)
           call_callback(:DirectoryCallback, req, res)
         end
@@ -257,7 +256,7 @@ module WEBrick
 
       def check_filename(req, res, name)
         @options[:NondisclosureName].each{|pattern|
-          if @filesystem.fnmatch("/#{pattern}", name)
+          if File.fnmatch("/#{pattern}", name)
             @logger.warn("the request refers nondisclosure name `#{name}'.")
             raise HTTPStatus::NotFound, "`#{req.path}' not found."
           end
@@ -283,19 +282,19 @@ module WEBrick
 
       def search_file(req, res, basename)
         langs = @options[:AcceptableLanguages]
-        path = basename.dup
-        if @filesystem.file?(path)
+        path = res.filename + basename
+        if File.file?(path)
           return basename
         elsif langs.size > 0
           req.accept_language.each{|lang|
             path_with_lang = path + ".#{lang}"
-            if langs.member?(lang) && @filesystem.file?(path_with_lang)
+            if langs.member?(lang) && File.file?(path_with_lang)
               return basename + ".#{lang}"
             end
           }
           (langs - req.accept_language).each{|lang|
             path_with_lang = path + ".#{lang}"
-            if @filesystem.file?(path_with_lang)
+            if File.file?(path_with_lang)
               return basename + ".#{lang}"
             end
           }
@@ -311,7 +310,7 @@ module WEBrick
 
       def nondisclosure_name?(name)
         @options[:NondisclosureName].each{|pattern|
-          if @filesystem.fnmatch(pattern, name)
+          if File.fnmatch(pattern, name)
             return true
           end
         }
@@ -324,16 +323,16 @@ module WEBrick
           raise HTTPStatus::Forbidden, "no access permission to `#{req.path}'"
         end
         local_path = res.filename
-        list = @filesystem.entries(local_path).collect{|name|
+        list = Dir::entries(local_path).collect{|name|
           next if name == "." || name == ".."
           next if nondisclosure_name?(name)
-          st = (@filesystem.meta(local_path + name) rescue nil)
+          st = (File::stat(local_path + name) rescue nil)
           if st.nil?
             [ name, nil, -1 ]
           elsif st.directory?
-            [ name + "/", st.getlastmodified, -1 ]
+            [ name + "/", st.mtime, -1 ]
           else
-            [ name, st.getlastmodified, st.getcontentlength ]
+            [ name, st.mtime, st.size ]
           end
         }
         list.compact!
@@ -367,7 +366,7 @@ module WEBrick
         res.body << "<A HREF=\"?S=#{d1}\">Size</A>\n"
         res.body << "<HR>\n"
        
-        list.unshift [ "..", @filesystem.meta(local_path+"..").getlastmodified, -1 ]
+        list.unshift [ "..", File::mtime(local_path+".."), -1 ]
         list.each{ |name, time, size|
           if name == ".."
             dname = "Parent Directory"

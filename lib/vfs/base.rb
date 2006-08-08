@@ -55,6 +55,11 @@ module VFS
     class BaseNode
         include Enumerable
         
+        def initialize( name, parent )
+            @name = name
+            @parent = parent
+        end
+        
         def path( end_slash=false )
             if @name
                 parentpath + @name + (end_slash ? '/' : '')
@@ -104,29 +109,35 @@ module VFS
             yield "."
             yield ".."
         end
+        
+        def resolve( name ) NopNode.new( name, self ) end
     end
     
     class NopNode < BaseNode
-        def initialize( name, parent )
-            @name = name
-            @parent = parent
-        end
-        
         def meta() NopMeta.new() end
             
         def open( mode="r" )
             throw Errno::ENOENT
         end
         
-        def resolve( name )
-            NopNode.new( name, self )
-        end
+        def resolve( name ) NopNode.new( name, self ) end
     end
     
     class NopMeta < BaseMeta
         def file_path
             throw Errno::ENOENT
         end
+    end
+    
+    class VirtualMeta < NopMeta
+        # See <tt>File.atime</tt>.
+        def atime() Time.now end
+        
+        # See <tt>File.ctime</tt>.
+        def ctime() Time.now end
+            
+        # See <tt>File.mtime</tt>.
+        def mtime() Time.now end
     end
         
     # The Root mixin module gives you an easy way to get methods common to all root nodes.

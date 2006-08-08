@@ -177,7 +177,7 @@ class WebDAVHandler < FileHandler
     end
   end # CodeConvFilter
 
-  def initialize(server, filesystem, options={}, default=Config::WebDAVHandler)
+  def initialize(server, root, options={}, default=Config::WebDAVHandler)
     super
     @cconv = CodeConvFilter.new(@options)
   end

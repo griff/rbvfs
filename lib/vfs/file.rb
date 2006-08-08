@@ -37,8 +37,7 @@ module VFS
         class Node < BaseNode
             def initialize( fs, name, parent )
                 @fs = fs
-                @name = name
-                @parent = parent
+                super( name, parent )
             end
             
             def fs_filepath
