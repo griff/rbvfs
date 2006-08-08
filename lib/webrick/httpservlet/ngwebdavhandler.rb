@@ -581,3 +581,4 @@ class WebDAVHandler < FileHandler
 
 end # WebDAVHandler
 end; end # HTTPServlet; WEBrick
+# vim: sts=4:sw=4:ts=4:et

@@ -8,8 +8,8 @@ module VFS
     class BaseMeta
         # See <tt>File.atime</tt>.
         def atime() File.atime( file_path ) end 
-	alias :lastaccessed :atime
-	alias :getlastaccessed :atime
+        alias :lastaccessed :atime
+        alias :getlastaccessed :atime
         
         # See <tt>File.ctime</tt>.
         def ctime() File.ctime( file_path ) end
@@ -150,3 +150,4 @@ module VFS
         end
     end
 end
+# vim: sts=4:sw=4:ts=4:et
