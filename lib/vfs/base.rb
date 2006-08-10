@@ -64,6 +64,8 @@ module VFS
             @parent = parent
         end
         
+        def blksize() 1024 end
+            
         def fs() @parent.fs() end
             
         def mkdir

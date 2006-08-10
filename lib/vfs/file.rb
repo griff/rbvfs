@@ -25,6 +25,12 @@ module VFS
 
             def meta() Meta.new( self ) end
 
+            def blksize
+                s = File.blksize( fs_filepath )
+                s = super unless s && s > 0
+                s
+            end
+            
             def open( mode="r", &block )
                 if block_given?
                     File.open( fs_filepath, mode, &block )

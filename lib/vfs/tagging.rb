@@ -69,11 +69,17 @@ module VFS
                 @file
             end
             
-            def file?() true end
+            def file?() exists? end
             def meta() VFS::File::Meta.new( self ) end
             
             def open( mode="r", &block )
                 File.open( fs_filepath, mode, &block )
+            end
+
+            def blksize
+                s = File.blksize( fs_filepath )
+                s = super unless s && s > 0
+                s
             end
             
             def fs_filepath
