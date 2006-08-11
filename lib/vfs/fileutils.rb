@@ -32,5 +32,28 @@ module VFS
             raise "unknown file type: #{path}"
           end
         end
+        
+        def fu_each_src_dest(dest)   #:nodoc:
+          if src.is_a?(Array)
+            src.each do |s|
+                if s.respond_to? :name && s.respond_to? :path
+                    basename = s.name
+                    s = s.path
+                else
+                    s = s.to_str
+                    basename = File.basename(s)
+                end
+                  
+              yield s, dest + basename
+            end
+          else
+            src = src.to_str
+            if File.directory?(dest)
+              yield src, File.join(dest, File.basename(src))
+            else
+              yield src, dest.to_str
+            end
+          end
+        end
     end
 end

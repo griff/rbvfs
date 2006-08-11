@@ -398,7 +398,7 @@ class VFSWebDAVHandler < VFSFileHandler
   private 
 
   def get_handler(req)
-    return DefaultFileHandler
+    return DefaultVFSFileHandler
   end
 
   def search_index_file(req, res)
