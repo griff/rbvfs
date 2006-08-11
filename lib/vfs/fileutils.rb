@@ -1,9 +1,18 @@
 module VFS
     class BaseNode
+        def rm_rf
+        end
+        
         def cp( dest )
+            fu_each_src_dest( dest) do |d|
+              copy_file d
+            end
         end
         
         def cp_r( dest )
+            fu_each_src_dest(src, dest) do |s, d|
+              copy_entry s, d, options[:preserve], options[:dereference_root]
+            end
         end
         
         def copy_file( dest )
@@ -34,24 +43,11 @@ module VFS
         end
         
         def fu_each_src_dest(dest)   #:nodoc:
-          if src.is_a?(Array)
-            src.each do |s|
-                if s.respond_to? :name && s.respond_to? :path
-                    basename = s.name
-                    s = s.path
-                else
-                    s = s.to_str
-                    basename = File.basename(s)
-                end
-                  
-              yield s, dest + basename
-            end
-          else
-            src = src.to_str
-            if File.directory?(dest)
-              yield src, File.join(dest, File.basename(src))
+            dest = fs.lookup(dest) unless dest.respond_to? :directory?
+            if dest.directory
+                yield dest + name
             else
-              yield src, dest.to_str
+                yield dest
             end
           end
         end

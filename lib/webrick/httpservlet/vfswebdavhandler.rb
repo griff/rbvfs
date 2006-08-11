@@ -350,6 +350,7 @@ class VFSWebDAVHandler < VFSFileHandler
     begin
       if depth.nil? # infinity
         FileUtils.cp_r(src, dest, {:preserve => true}) # todo: fix this
+        #src.cp_r( dest )
       elsif depth == 0
         if src.directory?
           meta = src.meta
@@ -361,7 +362,7 @@ class VFSWebDAVHandler < VFSFileHandler
             # simply ignore
           end
         else
-          FileUtils.cp(src, dest, {:preserve => true}) # todo: fix this
+            src.cp( dest )
         end
       end
     rescue Errno::ENOENT
@@ -379,6 +380,7 @@ class VFSWebDAVHandler < VFSFileHandler
     @logger.debug "rename #{src} -> #{dest}"
     begin
       File.rename(src, dest) # todo: fix this
+      #src.rename( dest )
     rescue Errno::ENOENT
       raise HTTPStatus::Conflict
       # FIXME: use multi status(?) and check error URL.
@@ -425,6 +427,7 @@ class VFSWebDAVHandler < VFSFileHandler
       if req["Overwrite"] == "T"
         @logger.debug "copy/move precheck: Overwrite flug=T, deleteing #{dest}"
         FileUtils.rm_rf(dest) # todo: fix this
+        #dest.rm_rf
       else
         raise HTTPStatus::PreconditionFailed
       end
