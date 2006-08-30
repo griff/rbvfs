@@ -7,32 +7,35 @@ module VFS
     # See <tt>VFS::NopMeta.file_path</tt>.
     class BaseMeta
         # See <tt>File.atime</tt>.
-        def atime() File.atime( file_path ) end 
+        def atime() ::File.atime( file_path ) end 
         alias :lastaccessed :atime
         
         def atime=( other )
-            File.utime( other, File.mtime( file_path ), file_path )
+            ::File.utime( other, ::File.mtime( file_path ), file_path )
         end
         alias :lastaccessed= :atime=
         
         # See <tt>File.ctime</tt>.
-        def ctime() File.ctime( file_path ) end
+        def ctime()
+            ::File.ctime( file_path ) end
         alias :creationdate :ctime
             
         # See <tt>File.mtime</tt>.
-        def mtime() File.mtime( file_path ) end
+        def mtime
+            ::File.mtime( file_path )
+        end
         alias :lastmodified :mtime
         alias :getlastmodified :mtime
             
         def mtime=( other )
-            File.utime( Time.now, other, file_path )
+            ::File.utime( Time.now, other, file_path )
             other
         end
         alias :lastmodified= :mtime=
         alias :getlastmodified= :mtime=
             
         # See <tt>File.size</tt>.
-        def size() File.size( file_path ) end
+        def size() ::File.size( file_path ) end
         alias :contentlength :size
         alias :getcontentlength :size
             
@@ -43,7 +46,7 @@ module VFS
         def zero() size() == 0 end
 
         def etag
-            st = File.stat( file_path )
+            st = ::File.stat( file_path )
             sprintf('%x-%x-%x', st.ino, st.size, st.mtime.to_i )
         end
         alias :getetag :etag

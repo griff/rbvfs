@@ -1,8 +1,48 @@
 module VFS
-    class BaseNode
-        def rm_rf
+    module Utils
+        def self.private_module_function(name)   #:nodoc:
+          module_function name
+          private_class_method name
+        end
+
+        def rm_r( list, options = {} )
+            list = fu_list(list)
+            
+            list.each do |path|
+                postorder_traverse(path) do |file|
+                    begin
+                      file.delete
+                    rescue
+                      raise unless options[:force]
+                    end
+                end
+            end
         end
         
+        def rm_rf( list, options={} )
+            options = options.dup
+            options[:force] = true
+            rm_r list, options
+        end
+        
+        def postorder_traverse( file )
+            if file.directory?
+                file.entries.each do |ent|
+                    postorder_traverse(ent) do |e|
+                        yield e
+                    end
+                end
+            end
+            yield file
+        end
+        private_module_function :postorder_traverse
+        
+        def fu_list(arg)   #:nodoc:
+          [arg].flatten
+        end
+        private_module_function :fu_list
+        
+    class BaseNode
         def cp( dest )
             fu_each_src_dest( dest) do |d|
               copy_file d

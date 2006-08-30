@@ -15,6 +15,8 @@ require 'webrick/htmlutils'
 require 'webrick/httputils'
 require 'webrick/httpstatus'
 
+require 'vfs'
+
 module WEBrick
   module HTTPServlet
 
@@ -40,7 +42,7 @@ module WEBrick
           res['content-type'] = mtype
           res['content-length'] = meta.size
           res['last-modified'] = mtime.httpdate
-          res.body = open(@local_path, "rb")
+          res.body = @local_path.open("rb")
         end
       end
 

@@ -11,31 +11,39 @@ module VFS
         #
         #
         class BaseNode < VFS::BaseNode
-            def file?() FileTest.file?( fs_filepath ) end
-            def exists?() FileTest.exists?( fs_filepath ) end
-            def directory?() FileTest.directory?( fs_filepath ) end
+            def file?() ::FileTest.file?( fs_filepath ) end
+            def exists?() ::FileTest.exists?( fs_filepath ) end
+            def directory?() ::FileTest.directory?( fs_filepath ) end
 
             def each( &block ) 
-                FileTest.directory?(fs_filepath) ? Dir.foreach( fs_filepath, &block ) : super
+                ::FileTest.directory?(fs_filepath) ? ::Dir.foreach( fs_filepath, &block ) : super
             end
 
             def mkdir
-                Dir.mkdir( fs_filepath )
+                ::Dir.mkdir( fs_filepath )
             end
 
             def meta() Meta.new( self ) end
 
             def blksize
-                s = File.blksize( fs_filepath )
+                s = ::File.blksize( fs_filepath )
                 s = super unless s && s > 0
                 s
             end
             
+            def delete
+                if file?
+                    ::File.unlink( fs_filepath )
+                elsif directory?
+                    ::Dir.rmdir( fs_filepath )
+                end
+            end
+            
             def open( mode="r", &block )
                 if block_given?
-                    File.open( fs_filepath, mode, &block )
+                    ::File.open( fs_filepath, mode, &block )
                 else
-                    File.new( fs_filepath, mode )
+                    ::File.new( fs_filepath, mode )
                 end
             end
 

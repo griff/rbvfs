@@ -8,8 +8,10 @@
 require 'time'
 require 'fileutils.rb'
 require 'rexml/document'
-require 'webrick/httpservlet/filehandler'
+require 'webrick/httpservlet/vfsfilehandler'
 require 'iconv'
+require 'vfs'
+require 'vfs/fileutils'
 
 module WEBrick
   class HTTPRequest
@@ -213,6 +215,7 @@ class VFSWebDAVHandler < VFSFileHandler
     rescue REXML::ParseException
       raise HTTPStatus::BadRequest
     end
+req_doc.write
 
     ns = {""=>"DAV:"}
     req_props = []
@@ -231,10 +234,11 @@ class VFSWebDAVHandler < VFSFileHandler
     else
       raise HTTPStatus::BadRequest
     end
-
+@logger.debug( req_props )
     ret = get_rec_prop(req, res, res.filename,
                        HTTPUtils.escape(codeconv_str_fscode2utf(req.path)),
                        req_props, *[depth].compact)
+@logger.debug(build_multistat(ret).to_s(0))            
     res.body << build_multistat(ret).to_s(0)
     res["Content-Type"] = 'text/xml; charset="utf-8"'
     raise HTTPStatus::MultiStatus
@@ -300,7 +304,7 @@ class VFSWebDAVHandler < VFSFileHandler
     map_filename(req, res)
     begin
       @logger.debug "rm_rf #{res.filename}"
-      res.filename.rm_rf
+      VFS::Utils.rm_rf( res.filename )
     rescue Errno::EPERM
       raise HTTPStatus::Forbidden
     #rescue
@@ -354,7 +358,7 @@ class VFSWebDAVHandler < VFSFileHandler
       elsif depth == 0
         if src.directory?
           meta = src.meta
-          dest.mkdir
+          #dest.mkdir todo: fix this
           begin
             dest.meta.lastmodified = src.meta.lastmodified
             dest.meta.lastaccessed = src.meta.lastaccessed
@@ -362,7 +366,7 @@ class VFSWebDAVHandler < VFSFileHandler
             # simply ignore
           end
         else
-            src.cp( dest )
+            #src.cp( dest ) todo: fix this
         end
       end
     rescue Errno::ENOENT
@@ -426,8 +430,8 @@ class VFSWebDAVHandler < VFSFileHandler
       exists_p = true
       if req["Overwrite"] == "T"
         @logger.debug "copy/move precheck: Overwrite flug=T, deleteing #{dest}"
-        FileUtils.rm_rf(dest) # todo: fix this
-        #dest.rm_rf
+        VFS::Utils.rm_rf(dest)
+        #FileUtils.rm_rf(dest) # todo: fix this
       else
         raise HTTPStatus::PreconditionFailed
       end
@@ -526,8 +530,8 @@ class VFSWebDAVHandler < VFSFileHandler
       }
       propstat.elements << pe
       propstat.elements << elem_status(req, res, HTTPStatus::OK)
-    rescue
-      propstat.elements << elem_status(req, res, HTTPStatus::InternalServerError)
+#    rescue
+#      propstat.elements << elem_status(req, res, HTTPStatus::InternalServerError)
     end
     propstat
   end
@@ -537,7 +541,7 @@ class VFSWebDAVHandler < VFSFileHandler
   end
 
   def get_prop_getlastmodified(file, st)
-    gen_element "D:getlastmodified", st.getlastmodified.httpdate
+    gen_element "D:getlastmodified", st.mtime.httpdate
   end
 
   def get_prop_getetag(file, st)
