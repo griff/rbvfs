@@ -288,8 +288,9 @@ req_doc.write
   def do_MKCOL(req, res)
     req.body.nil? or raise HTTPStatus::MethodNotAllowed
     begin
-      @logger.debug "mkdir #{@root+req.path_info}"
-      @filesystem.lookup(req.path_info).mkdir
+        file = @filesystem.lookup(req.path_info)
+        @logger.debug "mkdir #{file}"
+        file.mkdir
     rescue Errno::ENOENT, Errno::EACCES
       raise HTTPStatus::Forbidden
     rescue Errno::ENOSPC
