@@ -18,6 +18,12 @@ require 'vfs/file'
 # 
 module VFS
     
+    def VFS.fs_filepath( parent, name )
+        loc_path = parent.fs_filepath
+        loc_path += ::File::SEPARATOR unless %r{File::SEPARATOR$} =~ loc_path
+        loc_path + name
+    end
+    
     # Convert a object (path) to a str (if you can ;-)
     def VFS.to_path( path )
         path = path.to_str if path.respond_to? :to_str

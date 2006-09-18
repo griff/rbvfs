@@ -8,6 +8,7 @@
 require 'time'
 require 'fileutils.rb'
 require 'rexml/document'
+require 'builder'
 require 'webrick/httpservlet/vfsfilehandler'
 require 'iconv'
 require 'vfs'
@@ -29,8 +30,6 @@ module WEBrick
       :DefaultClientCodingWin  => "CP932",
       :DefaultClientCodingMacx => "UTF-8",
       :DefaultClientCodingUnix => "EUC-JP",
-      :NotInListName           => %w(.*),
-      :NondisclosureName       => %w(.ht*),
     }
     VFSWebDAVHandler = FileHandler.merge(webdavconf)
   end
@@ -207,8 +206,7 @@ class VFSWebDAVHandler < VFSFileHandler
   def do_PROPFIND(req, res)
     map_filename(req, res)
     @logger.debug "propfind requeset depth=#{req['Depth']}"
-    depth = (req["Depth"].nil? || req["Depth"] == "infinity") ? nil : req["Depth"].to_i
-    raise HTTPStatus::Forbidden unless depth # deny inifinite propfind
+    depth = (req["Depth"].nil? || req["Depth"] == "infinity") ? -1 : req["Depth"].to_i
 
     begin
       req_doc = REXML::Document.new req.body
@@ -217,20 +215,19 @@ class VFSWebDAVHandler < VFSFileHandler
     end
 req_doc.write
 
+    raise HTTPStatus::NotFound unless res.filename.exists?
     ns = {""=>"DAV:"}
     req_props = []
-    all_props = %w(creationdate getlastmodified getetag
-                   resourcetype getcontenttype getcontentlength)
 
     if req.body.nil? || !REXML::XPath.match(req_doc, "/propfind/allprop", ns).empty?
-      req_props = all_props
+        req_props = :Allprop
     elsif !REXML::XPath.match(req_doc, "/propfind/propname", ns).empty?
-      # TODO: support propname
-      raise HTTPStatus::NotImplemented
+        req_props = :Propname
     elsif !REXML::XPath.match(req_doc, "/propfind/prop", ns).empty?
-      REXML::XPath.each(req_doc, "/propfind/prop/*", ns){|e|
-        req_props << e.name
-      }
+        propelem = REXML::XPath.first(req_doc, "/propfind/prop", ns)
+        propelem.each_element { |e|
+            req_props << [ e.namespace, e.name ]
+        }
     else
       raise HTTPStatus::BadRequest
     end
@@ -238,8 +235,9 @@ req_doc.write
     ret = get_rec_prop(req, res, res.filename,
                        HTTPUtils.escape(codeconv_str_fscode2utf(req.path)),
                        req_props, *[depth].compact)
-@logger.debug(build_multistat(ret).to_s(0))            
-    res.body << build_multistat(ret).to_s(0)
+                       
+@logger.debug(build_multistat(ret).target!)            
+    res.body << build_multistat(ret).target!
     res["Content-Type"] = 'text/xml; charset="utf-8"'
     raise HTTPStatus::MultiStatus
   end
@@ -408,10 +406,6 @@ req_doc.write
     return DefaultVFSFileHandler
   end
 
-  def search_index_file(req, res)
-    return nil
-  end
-
   def cp_mv_precheck(req, res)
     depth = (req["Depth"].nil? || req["Depth"] == "infinity") ? nil : req["Depth"].to_i
     depth.nil? || depth == 0 or raise HTTPStatus::BadRequest
@@ -464,78 +458,118 @@ req_doc.write
     ret
   end
 
-  def map_filename(req, res)
-    raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @filesystem
-    set_filename(req, res)
-  end
-
   def build_multistat(rs)
-    m = elem_multistat
-    rs.each {|href, *cont|
-      res = m.add_element "D:response"
-      res.add_element("D:href").text = href
-      cont.flatten.each {|c| res.elements << c}
-    }
-    REXML::Document.new << m
-  end
-
-  def elem_status(req, res, retcodesym)
-    gen_element("D:status",
-                "HTTP/#{req.http_version} #{retcodesym.code} #{retcodesym.reason_phrase}")
-  end
-
-  def get_rec_prop(req, res, file, r_uri, props, depth = 5000)
-    ret_set = []
-    depth -= 1
-    ret_set << [r_uri, get_propstat(req, res, file, props)]
-    @logger.debug "get prop file='#{file}' depth=#{depth}"
-    return ret_set if !(file.directory? && depth >= 0)
-    file.entries.each {|d|
-      d == ".." || d == "." and next
-      (@options[:NondisclosureName]+@options[:NotInListName]).find {|pat|
-        File.fnmatch(pat, d) } and next
-      if (file + d).directory?
-        ret_set += get_rec_prop(req, res, file + d,
-                                HTTPUtils.normalize_path(
-                                  r_uri+HTTPUtils.escape(
-                                    codeconv_str_fscode2utf("/#{d}/"))),
-                                props, depth)
-      else 
-        ret_set << [HTTPUtils.normalize_path(
-                      r_uri+HTTPUtils.escape(
-                        codeconv_str_fscode2utf("/#{d}"))),
-          get_propstat(req, res, file + d, props)]
-      end
-    }
-    ret_set
-  end
-
-  def get_propstat(req, res, file, props)
-    propstat = REXML::Element.new "D:propstat"
-    errstat = {}
-    begin
-      meta = file.meta
-      pe = REXML::Element.new "D:prop"
-      props.each {|pname|
-        begin 
-          if respond_to?("get_prop_#{pname}", true)
-            pe << __send__("get_prop_#{pname}", file, meta)
-          else
-            raise HTTPStatus::NotFound
+      m = Builder::XmlMarkup.new
+      m.instruct!
+      m.multistatus( 'xmlns' => 'DAV:' ) do
+          rs.each do |href, *cont|
+              m.response do
+                  m.href( href )
+                  cont.each{ |c| m << c }
+              end
           end
-        rescue IgnoreProp
-          # simple ignore
-        rescue HTTPStatus::Status
-          # FIXME: add to errstat
-        end
-      }
-      propstat.elements << pe
-      propstat.elements << elem_status(req, res, HTTPStatus::OK)
-#    rescue
-#      propstat.elements << elem_status(req, res, HTTPStatus::InternalServerError)
-    end
-    propstat
+      end
+      m
   end
+
+    def get_rec_prop(req, res, file, r_uri, props, depth = -1)
+        ret_set = []
+        ret_set << [r_uri, get_propstat(req, res, file, props)]
+        @logger.debug "get prop file='#{file}' depth=#{depth}"
+        return ret_set if !(file.directory? && ( depth > 0 || depth < 0 ))
+    
+        depth -= 1 if depth
+        file.entries.each do |d|
+            d == ".." || d == "." and next
+            
+            nextfile = file + d
+            if nextfile.directory?
+                ret_set += get_rec_prop(req, res, nextfile,
+                        HTTPUtils.normalize_path(
+                                r_uri+HTTPUtils.escape(
+                                codeconv_str_fscode2utf("/#{d}/"))),
+                        props, depth)
+            else 
+                ret_set << [HTTPUtils.normalize_path(
+                                    r_uri+HTTPUtils.escape(
+                                    codeconv_str_fscode2utf("/#{d}"))),
+                             get_propstat(req, res, nextfile, props)
+                            ]
+            end
+        end
+        ret_set
+    end
+  
+    def build_status( req, retcodesym )
+        "HTTP/#{req.http_version} #{retcodesym.code} #{retcodesym.reason_phrase}"
+    end
+    
+    def tagprop( b, meta, ns, name, &block )
+        if ns.to_sym == :'DAV:'
+            b.tag!( name, &block )
+        else
+            b.tag!( "#{meta.namespace(ns)}:#{name}", &block )
+        end
+    end
+  
+    def get_propstat( req, res, file, props )
+        meta = file.meta
+        b = Builder::XmlMarkup.new
+        
+        namespaces = {}
+        meta.namespaces.each { |short, ns|
+            ns == :'DAV:' and next
+            namespaces["xmlns:#{short}"] = ns
+        }
+        
+        if props == :Propname
+            b.propstat namespaces do
+                b.prop do
+                    meta.allprop.each { |ns, name|
+                        tagprop( b, meta, ns, name )
+                    }
+                end
+                b.status( build_status( req, HTTPStatus::OK ) )
+            end
+        else
+            if props == :Allprop
+                props = meta.allprop
+            end
+            
+            failed_props = []
+            b.propstat namespaces do
+                b.prop do
+                    props.each do |ns, name|
+                        begin
+                            value = meta[ns].get!( name )
+                            tagprop( b, meta, ns, name ) {
+                                b << value.to_s
+                            }
+                        rescue IgnoreProp
+                            #simple ignore prop
+                        rescue NameError
+                            failed_props.push [ ns, name, HTTPStatus::NotFound ]
+                        rescue HTTPStatus::Status
+                            failed_props.push [ ns, name, errstat ]
+#                        rescue
+#                            failed_props.push [ ns, name, HTTPStatus::InternalServerError ]
+                        end
+                    end
+                end
+                b.status( build_status( req, HTTPStatus::OK ) )
+            end
+            failed_props.each do |ns, name, status|
+                b.propstat do
+                    b.prop do
+                        b.tag!( "D:#{name}", "xmlns:D" => "#{ns}" )
+                    end
+                    b.status( build_status( req, status ) )
+                end
+            end
+        end
+        
+        b.target!
+    end
 
   def get_prop_creationdate(file, st)
     gen_element "D:creationdate", st.creationdate.xmlschema
@@ -565,10 +599,6 @@ req_doc.write
   def get_prop_getcontentlength(file, st)
     file.file? or raise HTTPStatus::NotFound
     gen_element "D:getcontentlength", st.getcontentlength
-  end
-
-  def elem_multistat
-    gen_element "D:multistatus", nil, {"xmlns:D" => "DAV:"}
   end
 
   def gen_element(elem, text = nil, attrib = {})

@@ -1,3 +1,5 @@
+require 'vfs/meta'
+
 module VFS
     # The basic implementation for meta information objects. This class is meant to be extended or included
     # as a mixin and expects there to be implemented a file_path method returning the path to a valid file on
@@ -5,56 +7,57 @@ module VFS
     # See <tt>VFS::File::BaseNode.meta</tt>.
     # See <tt>VFS::File::Meta.file_path</tt>.
     # See <tt>VFS::NopMeta.file_path</tt>.
-    class BaseMeta
+    class BaseMeta < Meta::Meta
+        
+        define_namespace :DAV, :'DAV:'
+        
         # See <tt>File.atime</tt>.
-        def atime() ::File.atime( file_path ) end 
-        alias :lastaccessed :atime
-        
-        def atime=( other )
-            ::File.utime( other, ::File.mtime( file_path ), file_path )
-        end
-        alias :lastaccessed= :atime=
-        
+        property :DAV, :lastaccessed, 
+                :set => Proc.new { |other| ::File.utime( other, ::File.mtime( @meta.file_path ), @meta.file_path ); other }, 
+                :get=>Proc.new { ::File.atime( @meta.file_path ) }
+                
         # See <tt>File.ctime</tt>.
-        def ctime()
-            ::File.ctime( file_path ) end
-        alias :creationdate :ctime
-            
-        # See <tt>File.mtime</tt>.
-        def mtime
-            ::File.mtime( file_path )
-        end
-        alias :lastmodified :mtime
-        alias :getlastmodified :mtime
-            
-        def mtime=( other )
-            ::File.utime( Time.now, other, file_path )
-            other
-        end
-        alias :lastmodified= :mtime=
-        alias :getlastmodified= :mtime=
-            
-        # See <tt>File.size</tt>.
-        def size() ::File.size( file_path ) end
-        alias :contentlength :size
-        alias :getcontentlength :size
-            
-        # See <tt>File.size?</tt>.
-        def size?() size unless zero end
-            
-        # See <tt>File.zero</tt>.
-        def zero() size() == 0 end
-
-        def etag
-            st = ::File.stat( file_path )
-            sprintf('%x-%x-%x', st.ino, st.size, st.mtime.to_i )
-        end
-        alias :getetag :etag
+        property_reader( :DAV, :creationdate ){ 
+            ret = ::File.ctime( @meta.file_path )
+            ret.__send__( :define_method, :to_s ){ self.xmlschema }
+            ret
+        }
         
-        def contenttype
-            "httpd/unix-directory"
+        # See <tt>File.mtime</tt>.
+        property :DAV, :getlastmodified,
+                :set => Proc.new { |other| ::File.utime( Time.now, other, @meta.file_path ); other },
+                :get => Proc.new {
+                    ret = ::File.mtime( @meta.file_path )
+                    ret.__send__( :define_method, :to_s ){ self.httpdate }
+                    ret
+                }
+                
+        # See <tt>File.size</tt>.
+        property_reader( :DAV, :getcontentlength ){ ::File.size( @meta.file_path ) }
+        
+        property_reader( :DAV, :getetag ){
+            st = ::File.stat( @meta.file_path )
+            sprintf('%x-%x-%x', st.ino, st.size, st.mtime.to_i )
+        }
+        
+        property_reader( :DAV, :getcontenttype ){
+            @meta.owner.file? ?
+              HTTPUtils::mime_type(@meta.owner) :
+              "httpd/unix-directory"
+        }
+        
+        property_reader( :DAV, :resourcetype ){
+            if @meta.owner.directory?
+                '<D:collection xmlns:D="DAV:"/>'
+            else
+                ""
+            end
+        }
+        
+        attr_reader :owner
+        def initialize( owner )
+            @owner = owner
         end
-        alias :getcontenttype :contenttype
         
         #resourcetype - defines if it is a collection
     end
@@ -67,8 +70,6 @@ module VFS
             @parent = parent
         end
         
-        def blksize() 1024 end
-            
         def fs() @parent.fs() end
             
         def mkdir
@@ -86,7 +87,7 @@ module VFS
         def path( trail_slash=false )
             if @parent
                 parentpath = @parent.path
-                parentpath += '/' unless /\/$/ =~ parentpath
+                parentpath += '/' unless %r{/$} =~ parentpath
             else
                 parentpath = '/'
             end
@@ -171,4 +172,5 @@ module VFS
         def fs() @fs end
     end
 end
+
 # vim: sts=4:sw=4:ts=4:et

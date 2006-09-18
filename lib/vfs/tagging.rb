@@ -31,7 +31,7 @@ module VFS
 #                yield 'tags'
             end
             
-            def meta() VirtualMeta.new() end
+            def meta() VirtualMeta.new(self) end
             
             def resolve( name )
                 if name == 'files'
@@ -54,9 +54,9 @@ module VFS
                 FileFO.new( name, self )
             end
             
-            def exists?() File.exists?( fs_filepath ) end
+            def exists?() ::File.exists?( fs_filepath ) end
                 
-            def directory?() File.directory?( fs_filepath ) end
+            def directory?() ::File.directory?( fs_filepath ) end
             
             def meta() VFS::File::Meta.new( self ) end
             
@@ -69,40 +69,70 @@ module VFS
                 @file
             end
             
+            def exists?
+                loadData.nil?
+            end
+            
+            def delete
+                if loadData
+                    @file.destroy
+                    @file = nil
+                end
+            end
+            
             def file?() exists? end
             def meta() VFS::File::Meta.new( self ) end
             
             def open( mode="r", &block )
-                File.open( fs_filepath, mode, &block )
+                ::File.open( fs_filepath, mode, &block )
             end
 
             def blksize
-                s = File.blksize( fs_filepath )
-                s = super unless s && s > 0
-                s
+                ::File.blksize( fs_filepath )
             end
             
             def fs_filepath
-                loc_path = @parent.fs_filepath # + ::File::SEPARATOR + @name
-                loc_path += ::File::SEPARATOR unless %r{File::SEPARATOR$} =~ loc_path
-                loc_path + @name
+                VFS.fs_filepath( @parent, @name )
+            end
+        end
+        
+        class FileMeta
+            def loadData
+                if !@properties
+                    @properties = @owner.loadData.fileproperties.map{ |p| 
+                        property = p.property
+                        namespace = property.namespace
+                        [ namespace.alias, namespace.uri, property.name, property.value? ? p.value : nil  ]
+                    }
+                end
+                @properties
             end
         end
 
         class File < ActiveRecord::Base
             has_many :fileproperties
             validates_uniqueness_of :name
+            before_destroy { |record| FileProperty.destroy_all "file_id = #{record.id}"   }
         end
 
         class FileProperty < ActiveRecord::Base
             belongs_to :file
             belongs_to :property
             validates_uniqueness_of :property_id, :scope => :file_id
+            after_destroy { |record| Property.destroy if FileProperty.count("property_id = #{record.property_id}") == 0 }
         end
         
         class Property < ActiveRecord::Base
             has_many :fileproperties
+            belongs_to :namespace
             validates_uniqueness_of :name
+            after_destroy { |record| Namespace.destroy if Property.count("namespace_id = #{record.namespace_id}") == 0 }
+        end
+        
+        class Namespace < ActiveRecord::Base
+            has_many :properties
+            validates_uniqueness_of :alias
+            validates_uniqueness_of :uri
         end
     end
 end
@@ -110,22 +140,29 @@ end
 def create_schema
     ActiveRecord::Schema.define do
 
-      create_table :files, :force => true do |t|
-        t.column :id, :integer
-        t.column :name, :string
-      end
+        create_table :files, :force => true do |t|
+            t.column :id, :integer
+            t.column :name, :string
+        end
 
-      create_table :fileproperties, :force => true do |t|
-        t.column :file_id, :integer
-        t.column :property_id, :integer
-        t.column :value, :string
-      end
+        create_table :fileproperties, :force => true do |t|
+            t.column :file_id, :integer
+            t.column :property_id, :integer
+            t.column :value, :string
+        end
       
-      create_table :properties, :force => true do |t|
-          t.column :id, :integer
-          t.column :name, :string
-          t.column :value?, :boolean
-      end
+        create_table :properties, :force => true do |t|
+            t.column :id, :integer
+            t.column :namespace_id, :integer
+            t.column :name, :string
+            t.column :value?, :boolean
+        end
+      
+        create_table :namespaces, :force => true do |t|
+            t.column :id, :integer
+            t.column :alias, :string
+            t.column :uri, :string
+        end
     end
 end
 # vim: sts=4:sw=4:ts=4:et

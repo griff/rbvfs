@@ -16,7 +16,7 @@ module VFS
             def directory?() ::FileTest.directory?( fs_filepath ) end
 
             def each( &block ) 
-                ::FileTest.directory?(fs_filepath) ? ::Dir.foreach( fs_filepath, &block ) : super
+                ::FileTest.directory?(fs_filepath) ? ::Dir.entries( fs_filepath ).each(&block) : super
             end
 
             def mkdir
@@ -26,9 +26,7 @@ module VFS
             def meta() Meta.new( self ) end
 
             def blksize
-                s = ::File.blksize( fs_filepath )
-                s = super unless s && s > 0
-                s
+                ::File.blksize( fs_filepath )
             end
             
             def delete
@@ -59,9 +57,7 @@ module VFS
             end
 
             def fs_filepath
-                loc_path = @parent.fs_filepath # + ::File::SEPARATOR + @name
-                loc_path += ::File::SEPARATOR unless %r{File::SEPARATOR$} =~ loc_path
-                loc_path + @name
+                VFS.fs_filepath( @parent, @name )
             end
         end
 
@@ -79,11 +75,7 @@ module VFS
         end
 
         class Meta < VFS::BaseMeta
-            def initialize( fileObject )
-                @file = fileObject
-            end
-
-            def file_path() @file.fs_filepath end
+            def file_path() @owner.fs_filepath end
         end
     end
 end

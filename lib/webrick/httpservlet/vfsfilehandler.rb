@@ -128,15 +128,6 @@ module WEBrick
     end
 
     class VFSFileHandler < AbstractServlet
-      HandlerTable = Hash.new
-
-      def self.add_handler(suffix, handler)
-        HandlerTable[suffix] = handler
-      end
-
-      def self.remove_handler(suffix)
-        HandlerTable.delete(suffix)
-      end
 
       def initialize(server, root, options={}, default=Config::FileHandler)
         @config = server.config
@@ -147,26 +138,6 @@ module WEBrick
           options = { :FancyIndexing => options }
         end
         @options = default.dup.update(options)
-      end
-
-      def service(req, res)
-        # if this class is mounted on "/" and /~username is requested.
-        # we're going to override path informations before invoking service.
-        if defined?(Etc) && @options[:UserDir] && req.script_name.empty?
-          if %r|^(/~([^/]+))| =~ req.path_info
-            script_name, user = $1, $2
-            path_info = $'
-            begin
-              passwd = Etc::getpwnam(user)
-              @root = File::join(passwd.dir, @options[:UserDir])
-              req.script_name = script_name
-              req.path_info = path_info
-            rescue
-              @logger.debug "#{self.class}#do_GET: getpwnam(#{user}) failed"
-            end
-          end
-        end
-        super(req, res)
       end
 
       def do_GET(req, res)
@@ -202,122 +173,24 @@ module WEBrick
       private
 
       def exec_handler(req, res)
-        raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @filesystem
-        if set_filename(req, res)
+        if map_filename(req, res)
           handler = get_handler(req)
-          call_callback(:HandlerCallback, req, res)
           h = handler.get_instance(@config, res.filename)
           h.service(req, res)
           return true
         end
-        call_callback(:HandlerCallback, req, res)
         return false
       end
 
       def get_handler(req)
-        suffix1 = (/\.(\w+)$/ =~ req.script_name) && $1.downcase
-        suffix2 = (/\.(\w+)\.[\w\-]+$/ =~ req.script_name) && $1.downcase
-        handler_table = @options[:HandlerTable]
-        return handler_table[suffix1] || handler_table[suffix2] ||
-               HandlerTable[suffix1] || HandlerTable[suffix2] ||
-               DefaultVFSFileHandler
+          DefaultVFSFileHandler
       end
 
-      def set_filename(req, res)
-        res.filename = @filesystem.lookup('/')
-        path_info = VFS::cleanpath(req.path_info).scan(%r|/[^/]*|)
-
-        path_info.unshift("")  # dummy for checking @root dir
-        while base = path_info.first
-          check_filename(req, res, base)
-          break if base == "/"
-          break unless (res.filename + base).directory?
-          shift_path_info(req, res, path_info)
-          call_callback(:DirectoryCallback, req, res)
-        end
-
-        if base = path_info.first
-          check_filename(req, res, base)
-          if base == "/"
-            if file = search_index_file(req, res)
-              shift_path_info(req, res, path_info, file)
-              call_callback(:FileCallback, req, res)
-              return true
-            end
-            shift_path_info(req, res, path_info)
-          elsif file = search_file(req, res, base)
-            shift_path_info(req, res, path_info, file)
-            call_callback(:FileCallback, req, res)
-            return true
-          else
-            raise HTTPStatus::NotFound, "`#{req.path}' not found."
-          end
-        end
-
-        return false
-      end
-
-      def check_filename(req, res, name)
-        @options[:NondisclosureName].each{|pattern|
-          if File.fnmatch("/#{pattern}", name)
-            @logger.warn("the request refers nondisclosure name `#{name}'.")
-            raise HTTPStatus::NotFound, "`#{req.path}' not found."
-          end
-        }
-      end
-
-      def shift_path_info(req, res, path_info, base=nil)
-        tmp = path_info.shift
-        base = base || tmp
-        req.path_info = path_info.join
-        req.script_name << base
-        res.filename = res.filename + base
-      end
-
-      def search_index_file(req, res)
-        @config[:DirectoryIndex].each{|index|
-          if file = search_file(req, res, "/"+index)
-            return file
-          end
-        }
-        return nil
-      end
-
-      def search_file(req, res, basename)
-        langs = @options[:AcceptableLanguages]
-        path = res.filename + basename
-        if path.file?
-          return basename
-        elsif langs.size > 0
-          req.accept_language.each{|lang|
-            path_with_lang = path + ".#{lang}"
-            if langs.member?(lang) && path_with_lang.file?
-              return basename + ".#{lang}"
-            end
-          }
-          (langs - req.accept_language).each{|lang|
-            path_with_lang = path + ".#{lang}"
-            if path_with_lang.file?
-              return basename + ".#{lang}"
-            end
-          }
-        end
-        return nil
-      end
-
-      def call_callback(callback_name, req, res)
-        if cb = @options[callback_name]
-          cb.call(req, res)
-        end
-      end
-
-      def nondisclosure_name?(name)
-        @options[:NondisclosureName].each{|pattern|
-          if File.fnmatch(pattern, name)
-            return true
-          end
-        }
-        return false
+      def map_filename(req, res)
+          raise HTTPStatus::NotFound, "`#{req.path}' not found" unless @filesystem
+          path_info = VFS::cleanpath(req.path_info)
+          res.filename = @filesystem.lookup(path_info)
+          return res.filename.file?
       end
 
       def set_dir_list(req, res)
