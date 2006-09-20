@@ -4,22 +4,47 @@ module VFS
     module Meta
         class Namespace
             class << self
-                def property_reader( name, method, &block )
+                def property_check( name, method=nil, &block )
                     method = block if block_given?
+                    method = lambda(&method) if method
+                    self.send :define_method, "check_property_#{name}", method
+                    self.send :alias_method, "#{name}?", "check_property_#{name}"
+                end
+                
+                def property_reader( name, method=nil, &block )
+                    property_check(name) {true} unless method_defined? :"check_property_#{name}"
+                    method = block if block_given?
+                    method = lambda(&method) if method
                     self.send :define_method, "read_property_#{name}", method
                     self.send :alias_method, name, "read_property_#{name}"
                 end
                 
-                def property_writer( name, method, &block )
+                def property_writer( name, method=nil, &block )
+                    property_check(name) {true} unless method_defined? :"check_property_#{name}"
                     method = block if block_given?
+                    method = lambda(&method) if method
                     self.send :define_method, "write_property_#{name}", method
                     self.send :alias_method, "#{name}=", "write_property_#{name}"
                 end
                 
-                def property_remover( name, method, &block )
+                def property_remover( name, method=nil, &block )
+                    property_check(name) {true} unless method_defined? :"check_property_#{name}"
                     method = block if block_given?
+                    method = lambda(&method) if method
                     self.send :define_method, "remove_property_#{name}", method
                     self.send :alias_method, "remove_#{name}", "remove_property_#{name}"
+                end
+                
+                def properties_with_checks
+                    props = []
+                    self.public_instance_methods(false).each { |t|
+                        if t =~ /^check_property_.*$/
+                            prop = t.match(/^check_property_(.*)$/)[1]
+                            props << prop
+                        end
+                    }
+                    props += self.superclass.properties_with_checks if self.superclass.respond_to? :properties_with_checks
+                    props
                 end
                 
                 def properties_with_readers
@@ -59,7 +84,7 @@ module VFS
                 end
                 
                 def properties
-                    properties_with_readers | properties_with_writers | properties_with_removers
+                    properties_with_checks | properties_with_readers | properties_with_writers | properties_with_removers
                 end
             end
             
@@ -69,7 +94,15 @@ module VFS
             end
             
             def properties
-                properties_with_readers | properties_with_writers | properties_with_removers
+                props = []
+                properties_with_checks.each { |prop|
+                    props << prop if check(prop)
+                }
+                props
+            end
+            
+            def properties_with_checks
+                self.class.properties_with_readers
             end
             
             def properties_with_readers
@@ -84,7 +117,16 @@ module VFS
                 self.class.properties_removers
             end
             
-            def get!( name )
+            def check( name )
+                method = :"check_property_#{name}"
+                if self.respond_to? method 
+                    self.__send__( method )
+                else
+                    self.property_check_missing( name )
+                end
+            end
+            
+            def fetch( name )
                 method = :"read_property_#{name}"
                 if self.respond_to? method 
                     self.__send__( method )
@@ -93,7 +135,7 @@ module VFS
                 end
             end
             
-            def set!( name, value )
+            def store( name, value )
                 method = :"write_property_#{name}"
                 if self.respond_to? method 
                     self.__send__( method, value )
@@ -102,13 +144,17 @@ module VFS
                 end
             end
             
-            def remove!( name )
+            def delete( name )
                 method = :"remove_property_#{name}"
                 if self.respond_to? method 
                     self.__send__( method )
                 else
                     self.property_remover_missing( name )
                 end
+            end
+            
+            def property_check_missing( name )
+                @meta.property_check_missing( self.namespace, name )
             end
             
             def property_reader_missing( name )
@@ -131,6 +177,9 @@ module VFS
                 elsif sym =~ /^.*=$/
                     name = sym.match(/^(.*)=$/)[1]
                     return property_writer_missing( name, value )
+                elsif sym =~ /^.*\?$/
+                    name = sym.match(/^(.*)\?$/)[1]
+                    return property_check_missing( name )
                 else
                     return property_reader_missing( sym )
                 end
@@ -190,6 +239,16 @@ module VFS
                     module_eval %\
                     class #{n} < ::VFS::Meta::Namespace
                         NAMESPACE = :'#{uri}'
+                        PREFIX = :#{n}
+                        
+                        def #{n}.prefix
+                            PREFIX
+                        end
+                        
+                        def prefix
+                            #{n}::PREFIX
+                        end
+                        
                         def #{n}.namespace
                             NAMESPACE
                         end
@@ -215,6 +274,12 @@ module VFS
                     \
                 end
                 
+                def property_check( n, m, method = nil, &block )
+                    inherit_namespace n unless const_defined? n
+                    modl = const_get(n)
+                    modl.property_check( m, method, &block )
+                end
+                
                 def property_reader( n, m, method=nil, &block )
                     inherit_namespace n unless const_defined? n
                     modl = const_get(n)
@@ -236,11 +301,16 @@ module VFS
                 def property(n, m, args)
                     inherit_namespace n unless const_defined? n
                     modl = const_get(n)
-                    if args[:get]
-                        modl.property_reader( m, args[:get] )
+                    if args[:check]
+                        modl.property_check( m, args[:check])
+                    else
+                        modl.property_check( m ) {true}
                     end
-                    if args[:set]
-                        modl.property_writer( m, args[:set] )
+                    if args[:read]
+                        modl.property_reader( m, args[:read] )
+                    end
+                    if args[:write]
+                        modl.property_writer( m, args[:write] )
                     end
                     if args[:remove]
                         modl.property_remover( m, args[:remove] )
@@ -302,7 +372,7 @@ module VFS
                 end
             end
             
-            def allprop
+            def all_properties
                 ret = []
                 namespaces.each { |prefix, ns|
                     self[ns].properties.each { |name|
@@ -316,16 +386,20 @@ module VFS
                 self.class.namespaces
             end
             
+            def property_check_missing( ns, name )
+                raise NameError, "unknown property check '#{name}' for namespace '#{ns}'", caller
+            end
+            
             def property_reader_missing( ns, name )
-                raise NameError, "unknown get for property '#{name}' for namespace '#{ns}'", caller
+                raise NameError, "unknown property reader '#{name}' for namespace '#{ns}'", caller
             end
 
             def property_writer_missing( ns, name, value )
-                raise NameError, "unknown set for property '#{name}' for namespace '#{ns}'", caller
+                raise NameError, "unknown property writer '#{name}' for namespace '#{ns}'", caller
             end
 
             def property_remover_missing( ns, name )
-                raise NameError, "unknown remove for property '#{name}' for namespace '#{ns}'", caller
+                raise NameError, "unknown property remover '#{name}' for namespace '#{ns}'", caller
             end
             
             def prefix_get( prefix )
@@ -368,9 +442,10 @@ end
 class BaseMeta < VFS::Meta::Meta
     define_namespace :DAV, :'DAV:'
     property :DAV, :lastaccessed, 
-            :set => Proc.new {puts "Test set"}, 
-            :get=>Proc.new {puts "Test get"}, 
-            :remove=>Proc.new {puts "Test remove"}
+            :check => lambda {true},
+            :write => lambda {puts "Test set"}, 
+            :read=>lambda {puts "Test get"}, 
+            :remove=>lambda {puts "Test remove"}
 end
 
 class MiddleMeta < BaseMeta
@@ -379,12 +454,12 @@ end
 class TopMeta < MiddleMeta
     define_namespace :FUF, :'uri:test'
     property :DAV, :getetag, 
-            :set => Proc.new {puts "Test set"}, 
-            :get=>Proc.new {puts "Test get"}, 
+            :write => Proc.new {puts "Test set"}, 
+            :read => Proc.new {puts "Test get"}, 
             :remove=>Proc.new {puts "Test remove"}
 
     property :DAV, :contentlength, 
-                    :get=>Proc.new {puts "Test get"}
+                    :read=>Proc.new {puts "Test get"}
     property :DAV, :lld,
                     :remove=>Proc.new {puts "dfgsdfg"}
 end
@@ -396,6 +471,7 @@ t.namespaces.display
 puts
 puts t['uri:test']
 t.DAV.getetag = 12
+puts t.DAV.class.name
 
 class Fred
     attr_accessor :a1

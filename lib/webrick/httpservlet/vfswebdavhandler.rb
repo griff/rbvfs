@@ -525,7 +525,7 @@ req_doc.write
         if props == :Propname
             b.propstat namespaces do
                 b.prop do
-                    meta.allprop.each { |ns, name|
+                    meta.all_properties.each { |ns, name|
                         tagprop( b, meta, ns, name )
                     }
                 end
@@ -533,7 +533,7 @@ req_doc.write
             end
         else
             if props == :Allprop
-                props = meta.allprop
+                props = meta.all_properties
             end
             
             failed_props = []
