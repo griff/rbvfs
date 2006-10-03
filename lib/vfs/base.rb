@@ -25,8 +25,8 @@ module VFS
         
         # See <tt>File.mtime</tt>.
         property :DAV, :getlastmodified,
-                :set => Proc.new { |other| ::File.utime( Time.now, other, @meta.file_path ); other },
-                :get => Proc.new {
+                :set => lambda { |other| ::File.utime( Time.now, other, @meta.file_path ); other },
+                :get => lambda {
                     ret = ::File.mtime( @meta.file_path )
                     ret.__send__( :define_method, :to_s ){ self.httpdate }
                     ret
@@ -58,8 +58,6 @@ module VFS
         def initialize( owner )
             @owner = owner
         end
-        
-        #resourcetype - defines if it is a collection
     end
     
     class BaseNode

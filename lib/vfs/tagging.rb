@@ -96,7 +96,16 @@ module VFS
             end
         end
         
-        class FileMeta
+        class NopNS < VFS::Meta::Namespace
+            attr_reader :namespace, :prefix
+            def initialize( prefix, ns, meta )
+                super(meta)
+                @prefix = prefix
+                @namespace = ns
+            end
+        end
+        
+        class FileMeta < VFS::BaseMeta
             def loadData
                 if !@properties
                     @properties = @owner.loadData.fileproperties.map{ |p| 
@@ -106,6 +115,50 @@ module VFS
                     }
                 end
                 @properties
+            end
+            
+            def namespaces
+                super | #Loaded from db
+            end
+            
+            def dynamic_properties( ns )
+                ns = ns.to_s
+                ret = []
+                @owner.loadData.fileproperties.each do |p|
+                    property = p.property
+                    ret << property.name.to_sym if property.namespace.uri == ns
+                end
+                ret
+            end
+
+            def namespace_missing( prefix, ns )
+                if prefix
+                    namespace = Namespace.find_by_alias( prefix )
+                else
+                    namespace = Namespace.find_by_uri( ns )
+                end
+                if namespace
+                    prefix = namespace.alias.to_sym unless prefix
+                    ns = namespace.uri.to_sym unless ns
+                else
+                    raise NameError unless ns
+                    #TODO auto generate prefix
+                end
+                NopNS.new( prefix, ns, self )
+            end
+            
+            def property_checker_missing( ns, prop )
+                namespace = Namespace.find_by_uri( ns )
+                return super unless namespace
+            end
+
+            def property_reader_missing( ns, prop )
+            end
+            
+            def property_writer_missing( ns, prop, value )
+            end
+            
+            def property_remover_missing( ns, prop )
             end
         end
 
@@ -119,14 +172,12 @@ module VFS
             belongs_to :file
             belongs_to :property
             validates_uniqueness_of :property_id, :scope => :file_id
-            after_destroy { |record| Property.destroy if FileProperty.count("property_id = #{record.property_id}") == 0 }
         end
         
         class Property < ActiveRecord::Base
             has_many :fileproperties
             belongs_to :namespace
             validates_uniqueness_of :name
-            after_destroy { |record| Namespace.destroy if Property.count("namespace_id = #{record.namespace_id}") == 0 }
         end
         
         class Namespace < ActiveRecord::Base

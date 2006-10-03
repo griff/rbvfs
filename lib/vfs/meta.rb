@@ -98,7 +98,7 @@ module VFS
                 properties_with_checks.each { |prop|
                     props << prop if check(prop)
                 }
-                props
+                props | dynamic_properties
             end
             
             def properties_with_checks
@@ -151,6 +151,10 @@ module VFS
                 else
                     self.property_remover_missing( name )
                 end
+            end
+            
+            def dynamic_properties
+                @meta.dynamic_properties( self.namespace )
             end
             
             def property_check_missing( name )
@@ -386,6 +390,10 @@ module VFS
                 self.class.namespaces
             end
             
+            def dynamic_properties( ns )
+                []
+            end
+            
             def property_check_missing( ns, name )
                 raise NameError, "unknown property check '#{name}' for namespace '#{ns}'", caller
             end
@@ -453,6 +461,7 @@ end
 
 class TopMeta < MiddleMeta
     define_namespace :FUF, :'uri:test'
+    
     property :DAV, :getetag, 
             :write => Proc.new {puts "Test set"}, 
             :read => Proc.new {puts "Test get"}, 
@@ -471,24 +480,7 @@ t.namespaces.display
 puts
 puts t['uri:test']
 t.DAV.getetag = 12
+t['DAV:'].getetag = 12
 puts t.DAV.class.name
 
-class Fred
-    attr_accessor :a1
-    
-    def initialize
-        @iv = 3
-    end
-end
-t = Fred.new
-t.instance_variables.display
-puts
-puts "'#{t.a1}' '#{t.instance_variable_get(:@a1)}'"
-t.a1 = 4
-t.instance_variables.display
-puts
-t.send :remove_instance_variable, :@a1
-t.instance_variables.display
-puts
-puts "'#{t.a1}' '#{t.instance_variable_get(:@a1)}'"
 # vim: sts=4:sw=4:ts=4:et
