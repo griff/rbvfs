@@ -7,13 +7,13 @@ require 'active_record'
 
 module VFS
     module Tagging
-        class BaseNode < VFS::BaseNode
-            def resolve( name )
-                Node.new( @fs, name, self )
-            end
-        end
-    
         class Node  < VFS::BaseNode
+            def initialize( fs, name, parent )
+                @fs = fs
+                super( name, parent )
+            end
+
+            def fs_filepath() @parent.fs_filepath end
         end
         
         class Root < VFS::BaseNode
@@ -28,30 +28,50 @@ module VFS
             def each
                 super
                 yield 'files'
-#                yield 'tags'
+                yield 'tags'
             end
             
-            def meta() VirtualMeta.new(self) end
+            def meta() VFS::File::Meta.new(self) end
             
             def resolve( name )
                 if name == 'files'
-                    FilesFO.new( name, self )
+                    FilesFO.new( @fs, name, self )
+                elsif name == 'tags'
+                    TagsFO.new( @fs, name, self )
                 else
                     super
                 end
             end
             
-            def fs_filepath() @parent.fs_filepath end
-        end 
+            def fs_filepath() @filespath end
+        end
         
-        class FilesFO < VFS::BaseNode
+        class TagsFO < Node
+            def each
+                super
+                #TODO yield tags in this folder
+            end
+            
+            def resolve( name )
+            end
+            
+            def exists?() end
+            
+            def file?() end
+            
+            def directory?() end
+            
+            def meta() FileMeta.new( self ) end
+        end
+        
+        class FilesFO < Node
             def each
                 super
                 File.find(:all).each{ |f| yield f.name }
             end
             
             def resolve( name )
-                FileFO.new( name, self )
+                FileFO.new( @fs, name, self )
             end
             
             def exists?() ::File.exists?( fs_filepath ) end
@@ -59,11 +79,9 @@ module VFS
             def directory?() ::File.directory?( fs_filepath ) end
             
             def meta() VFS::File::Meta.new( self ) end
-            
-            def fs_filepath() @parent.fs_filepath end
         end
         
-        class FileFO < VFS::BaseNode
+        class FileFO < Node
             def loadData
                 @file = File.find_by_name(@name) unless @file
                 @file
@@ -81,7 +99,7 @@ module VFS
             end
             
             def file?() exists? end
-            def meta() VFS::File::Meta.new( self ) end
+            def meta() FileMeta.new( self ) end
             
             def open( mode="r", &block )
                 ::File.open( fs_filepath, mode, &block )
@@ -106,27 +124,24 @@ module VFS
         end
         
         class FileMeta < VFS::BaseMeta
-            def loadData
-                if !@properties
-                    @properties = @owner.loadData.fileproperties.map{ |p| 
-                        property = p.property
-                        namespace = property.namespace
-                        [ namespace.alias, namespace.uri, property.name, property.value? ? p.value : nil  ]
-                    }
-                end
-                @properties
-            end
-            
             def namespaces
-                super | #Loaded from db
+                ret = super.to_set
+                @owner.loadData.properties.find_all.each do |p|
+                    namespace = p.namespace
+                    ret << [namespace.alias.to_sym, namespace.uri.to_sym]
+                end
+                ret.to_a
             end
             
             def dynamic_properties( ns )
                 ns = ns.to_s
                 ret = []
-                @owner.loadData.fileproperties.each do |p|
-                    property = p.property
-                    ret << property.name.to_sym if property.namespace.uri == ns
+                namespace = Namespace.find_by_uri( ns )
+                if namespace
+                    ret = @owner.loadData.properties.find_all_by_namespace_id( namespace.id ).map do |p|
+                        p.name.to_sym
+                    end
+#                    ret = ret.to_set.to_a
                 end
                 ret
             end
@@ -142,28 +157,66 @@ module VFS
                     ns = namespace.uri.to_sym unless ns
                 else
                     raise NameError unless ns
-                    #TODO auto generate prefix
+                    create_namespace( ns )
                 end
                 NopNS.new( prefix, ns, self )
             end
             
-            def property_checker_missing( ns, prop )
+            def create_namespace( ns )
+                prefix = "Prefix" # TODO find better way to auto generate prefix
+                namespace = Namespace.new( :uri => ns, :alias => prefix )
+                namespace.save!
+                namespace.prefix = "Prefix#{namespace.id}"
+                namespace.save!
+                return namespace
+            end
+            
+            def lookup( ns, prop )
                 namespace = Namespace.find_by_uri( ns )
-                return super unless namespace
+                return [nil, nil, nil] unless namespace
+                property = Property.find_by_name_and_namespace_id( prop, namespace.id )
+                return [nil, nil, namespace] unless property
+                file_property FileProperty.find_by_file_id_and_property_id( load.id, property.id )
+                return [nil, property, namespace] unless file_property
+                return [file_property, property, namespace]
+            end
+            
+            def property_checker_missing( ns, prop )
+                file_property, property, namespace = lookup( ns, prop )
+                return !file_property.nil?
             end
 
             def property_reader_missing( ns, prop )
+                file_property, property, namespace = lookup( ns, prop )
+                return super unless file_property
+                return file_property.value
             end
             
             def property_writer_missing( ns, prop, value )
+                file_property, property, namespace = lookup( ns, prop )
+                unless namespace
+                    namespace = create_namespace( ns )
+                end
+                unless property
+                    property = Property.new( :namespace_id => namespace.id, :name => prop, :value? => true )
+                    property.save!
+                end
+                unless file_property
+                    file_property = FileProperty.new( :file_id => owner.loadData.id, :property_id => property.id )
+                end
+                file_property.value = value
+                file_property.save!
             end
             
             def property_remover_missing( ns, prop )
+                file_property, property, namespace = lookup( ns, prop )
+                file_property.detroy unless file_property
             end
         end
 
         class File < ActiveRecord::Base
             has_many :fileproperties
+            has_many :properties, :through => :fileproperties
             validates_uniqueness_of :name
             before_destroy { |record| FileProperty.destroy_all "file_id = #{record.id}"   }
         end
@@ -182,7 +235,7 @@ module VFS
         
         class Namespace < ActiveRecord::Base
             has_many :properties
-            validates_uniqueness_of :alias
+#            validates_uniqueness_of :alias
             validates_uniqueness_of :uri
         end
     end
@@ -197,6 +250,7 @@ def create_schema
         end
 
         create_table :fileproperties, :force => true do |t|
+            t.column :id, :integer
             t.column :file_id, :integer
             t.column :property_id, :integer
             t.column :value, :string

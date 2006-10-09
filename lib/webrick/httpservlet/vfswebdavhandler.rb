@@ -571,36 +571,6 @@ req_doc.write
         b.target!
     end
 
-  def get_prop_creationdate(file, st)
-    gen_element "D:creationdate", st.creationdate.xmlschema
-  end
-
-  def get_prop_getlastmodified(file, st)
-    gen_element "D:getlastmodified", st.mtime.httpdate
-  end
-
-  def get_prop_getetag(file, st)
-    gen_element "D:getetag", st.getetag
-  end
-
-  def get_prop_resourcetype(file, st)
-    t = gen_element "D:resourcetype"
-    file.directory? and t.add_element("D:collection")
-    t
-  end
-
-  def get_prop_getcontenttype(file, st)
-    gen_element("D:getcontenttype",
-                file.file? ?
-                  HTTPUtils::mime_type(file, @config[:MimeTypes]) :
-                  "httpd/unix-directory")
-  end
-
-  def get_prop_getcontentlength(file, st)
-    file.file? or raise HTTPStatus::NotFound
-    gen_element "D:getcontentlength", st.getcontentlength
-  end
-
   def gen_element(elem, text = nil, attrib = {})
     e = REXML::Element.new elem
     text and e.text = text

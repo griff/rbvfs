@@ -143,20 +143,6 @@ module VFS
             throw Errno::ENOENT
         end
     end
-    
-    class VirtualMeta < NopMeta
-        # See <tt>File.atime</tt>.
-        def atime() Time.now end
-        
-        # See <tt>File.ctime</tt>.
-        def ctime() Time.now end
-            
-        # See <tt>File.mtime</tt>.
-        def mtime() Time.now end
-            
-        # See <tt>File.size</tt>.
-        def size() 0 end
-    end
         
     # The Root mixin module gives you an easy way to get methods common to all root nodes.
     # This is mainly the assignpath method.
