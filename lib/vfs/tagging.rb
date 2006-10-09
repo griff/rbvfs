@@ -181,7 +181,7 @@ module VFS
                 return [file_property, property, namespace]
             end
             
-            def property_checker_missing( ns, prop )
+            def property_check_missing( ns, prop )
                 file_property, property, namespace = lookup( ns, prop )
                 return !file_property.nil?
             end

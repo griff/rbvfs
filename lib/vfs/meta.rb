@@ -1,6 +1,7 @@
 require 'set'
 
 module VFS
+    
     module Meta
         class Namespace
             class << self
@@ -175,7 +176,19 @@ module VFS
             
             def method_missing( sym, value=nil )
                 sym = sym.to_s
-                if sym =~ /^remove_.*$/
+                if sym =~ /^remove_property_.*$/
+                    name = sym.match( /^remove_property_(.*)$/ )[1]
+                    return property_removed_missing( name )
+                elsif sym =~ /^write_property_.*$/ 
+                    name = sym.match( /^write_property_(.*)$/ )[1]
+                    return property_writer_missing( name, value )
+                elsif sym =~ /^read_property_.*$/
+                    name = sym.match( /^read_property_(.*)$/ )[1]
+                    return property_reader_missing( name )
+                elsif sym =~ /^check_property_.*$/
+                    name = sym.match( /^check_property_(.*)$/ )[1]
+                    return property_check_missing( name )
+                elsif sym =~ /^remove_.*$/
                     name = sym.match(/^remove_(.*)$/)[1]
                     return property_remover_missing( name )
                 elsif sym =~ /^.*=$/
