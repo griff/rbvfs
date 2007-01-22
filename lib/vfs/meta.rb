@@ -176,27 +176,20 @@ module VFS
             
             def method_missing( sym, value=nil )
                 sym = sym.to_s
-                if sym =~ /^remove_property_.*$/
-                    name = sym.match( /^remove_property_(.*)$/ )[1]
-                    return property_removed_missing( name )
-                elsif sym =~ /^write_property_.*$/ 
-                    name = sym.match( /^write_property_(.*)$/ )[1]
-                    return property_writer_missing( name, value )
-                elsif sym =~ /^read_property_.*$/
-                    name = sym.match( /^read_property_(.*)$/ )[1]
-                    return property_reader_missing( name )
-                elsif sym =~ /^check_property_.*$/
-                    name = sym.match( /^check_property_(.*)$/ )[1]
-                    return property_check_missing( name )
-                elsif sym =~ /^remove_.*$/
-                    name = sym.match(/^remove_(.*)$/)[1]
-                    return property_remover_missing( name )
-                elsif sym =~ /^.*=$/
-                    name = sym.match(/^(.*)=$/)[1]
-                    return property_writer_missing( name, value )
-                elsif sym =~ /^.*\?$/
-                    name = sym.match(/^(.*)\?$/)[1]
-                    return property_check_missing( name )
+                if sym =~ /^remove_property_(.*)$/
+                    return property_removed_missing( $~[1] )
+                elsif sym =~ /^write_property_(.*)$/ 
+                    return property_writer_missing( $~[1], value )
+                elsif sym =~ /^read_property_(.*)$/
+                    return property_reader_missing( $~[1] )
+                elsif sym =~ /^check_property_(.*)$/
+                    return property_check_missing( $~[1] )
+                elsif sym =~ /^remove_(.*)$/
+                    return property_remover_missing( $~[1] )
+                elsif sym =~ /^(.*)=$/
+                    return property_writer_missing( $~[1], value )
+                elsif sym =~ /^(.*)\?$/
+                    return property_check_missing( $~[1] )
                 else
                     return property_reader_missing( sym )
                 end
@@ -424,11 +417,16 @@ module VFS
             end
             
             def prefix_get( prefix )
+                prefix = prefix.to_sym
+                nsObj = @prefixes[prefix]
+                return nsObj if nsObj
+                
                 if prefix_defined?( prefix )
-                    self.class.inheritable_const_get( prefix ).new( self )
+                    nsObj = self.class.inheritable_const_get( prefix ).new( self )
                 else
-                    namespace_missing( prefix, nil )
+                    nsObj = namespace_missing( prefix, nil )
                 end
+                @namespaces[nsObj.namespace] = @prefixes[nsObj.prefix] = nsObj
             end
             
             def prefix_defined?( prefix )
@@ -440,9 +438,17 @@ module VFS
             end
             
             def namespace_get( ns )
+                ns = ns.to_sym
+                nsObj = @namespaces[ns]
+                return nsObj if nsObj
+
                 ms = self.class.namespace_get( ns )
-                return namespace_missing( nil, ns ) unless ms
-                ms.new( self )
+                if ms
+                    nsObj = ms.new( self )
+                else
+                    nsObj = namespace_missing( nil, ns )
+                end
+                @namespaces[nsObj.namespace] = @prefixes[nsObj.prefix] = nsObj
             end
             
             def []( ns )
