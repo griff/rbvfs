@@ -72,6 +72,22 @@ module VFS
             def fs_filepath
                 @rootpath
             end
+            
+#            def each( &block ) 
+#                super
+#                yield 'testo'
+#            end
+            
+            def resolve( name )
+                if name == 'testo'
+                    puts "Hello #{name}"
+                    ret = Root.new( @rootpath + '/../..' )
+                    ret.assignpath(@fs, 'testo', self )
+                    ret
+                else
+                    super
+                end
+            end
         end
 
         class Meta < VFS::BaseMeta

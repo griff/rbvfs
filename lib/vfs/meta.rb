@@ -129,11 +129,11 @@ module VFS
             
             def fetch( name )
                 method = :"read_property_#{name}"
-                if self.respond_to? method 
-                    self.__send__( method )
-                else
-                    self.property_reader_missing( name )
-                end
+                self.__send__( method )
+#                if self.respond_to? method 
+#                else
+#                    self.property_reader_missing( name )
+#                end
             end
             
             def store( name, value )
@@ -206,8 +206,8 @@ module VFS
                 
                 def inheritable_const_defined?( const )
                     self.const_defined?(const) || 
-                        (self.superclass.respond_to?(:inheritable_const_defined) && 
-                            self.superclass.inheritable_const_defined(const) )
+                        (self.superclass.respond_to?(:inheritable_const_defined?) && 
+                            self.superclass.inheritable_const_defined?(const) )
                 end
                 
                 def inheritable_const_get( const )
@@ -418,7 +418,7 @@ module VFS
             
             def prefix_get( prefix )
                 prefix = prefix.to_sym
-                nsObj = @prefixes[prefix]
+                nsObj = prefix_cache[prefix]
                 return nsObj if nsObj
                 
                 if prefix_defined?( prefix )
@@ -426,7 +426,7 @@ module VFS
                 else
                     nsObj = namespace_missing( prefix, nil )
                 end
-                @namespaces[nsObj.namespace] = @prefixes[nsObj.prefix] = nsObj
+                namespace_cache[nsObj.namespace] = prefix_cache[nsObj.prefix] = nsObj
             end
             
             def prefix_defined?( prefix )
@@ -439,7 +439,7 @@ module VFS
             
             def namespace_get( ns )
                 ns = ns.to_sym
-                nsObj = @namespaces[ns]
+                nsObj = namespace_cache[ns]
                 return nsObj if nsObj
 
                 ms = self.class.namespace_get( ns )
@@ -448,7 +448,7 @@ module VFS
                 else
                     nsObj = namespace_missing( nil, ns )
                 end
-                @namespaces[nsObj.namespace] = @prefixes[nsObj.prefix] = nsObj
+                namespace_cache[nsObj.namespace] = prefix_cache[nsObj.prefix] = nsObj
             end
             
             def []( ns )
@@ -462,44 +462,17 @@ module VFS
             def namespace_missing( prefix, ns )
                 raise NameError, "uninitialized namespace #{ns} with prefix #{prefix}", caller
             end
+            
+            def namespace_cache
+                @namespaces = Hash.new unless @namespaces
+                @namespaces
+            end
+            
+            def prefix_cache
+                @prefixes = Hash.new unless @prefixes
+                @prefixes
+            end
         end
     end
 end
-
-class BaseMeta < VFS::Meta::Meta
-    define_namespace :DAV, :'DAV:'
-    property :DAV, :lastaccessed, 
-            :check => lambda {true},
-            :write => lambda {puts "Test set"}, 
-            :read=>lambda {puts "Test get"}, 
-            :remove=>lambda {puts "Test remove"}
-end
-
-class MiddleMeta < BaseMeta
-end
-
-class TopMeta < MiddleMeta
-    define_namespace :FUF, :'uri:test'
-    
-    property :DAV, :getetag, 
-            :write => Proc.new {puts "Test set"}, 
-            :read => Proc.new {puts "Test get"}, 
-            :remove=>Proc.new {puts "Test remove"}
-
-    property :DAV, :contentlength, 
-                    :read=>Proc.new {puts "Test get"}
-    property :DAV, :lld,
-                    :remove=>Proc.new {puts "dfgsdfg"}
-end
-TopMeta.namespaces.display
-puts
-puts TopMeta::DAV.properties_with_readers
-t = TopMeta.new
-t.namespaces.display
-puts
-puts t['uri:test']
-t.DAV.getetag = 12
-t['DAV:'].getetag = 12
-puts t.DAV.class.name
-
 # vim: sts=4:sw=4:ts=4:et

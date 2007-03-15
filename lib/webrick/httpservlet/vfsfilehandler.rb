@@ -28,8 +28,8 @@ module WEBrick
 
       def do_GET(req, res)
         meta = @local_path.meta
-        mtime = meta.lastmodified
-        res['etag'] = meta.etag
+        mtime = meta.DAV.getlastmodified
+        res['etag'] = meta.DAV.getetag
 
         if not_modified?(req, res, mtime, res['etag'])
           res.body = ''
@@ -40,7 +40,7 @@ module WEBrick
         else
           mtype = HTTPUtils::mime_type(@local_path, @config[:MimeTypes])
           res['content-type'] = mtype
-          res['content-length'] = meta.size
+          res['content-length'] = meta.DAV.getcontentlength
           res['last-modified'] = mtime.httpdate
           res.body = @local_path.open("rb")
         end

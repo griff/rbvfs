@@ -213,8 +213,8 @@ class VFSWebDAVHandler < VFSFileHandler
     rescue REXML::ParseException
       raise HTTPStatus::BadRequest
     end
-req_doc.write
-
+#req_doc.write
+@logger.debug "propfind filepath #{res.filename.fs_filepath}"
     raise HTTPStatus::NotFound unless res.filename.exists?
     ns = {""=>"DAV:"}
     req_props = []
@@ -541,7 +541,7 @@ req_doc.write
                 b.prop do
                     props.each do |ns, name|
                         begin
-                            value = meta[ns].get!( name )
+                            value = meta[ns].fetch( name )
                             tagprop( b, meta, ns, name ) {
                                 b << value.to_s
                             }

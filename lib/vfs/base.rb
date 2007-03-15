@@ -13,22 +13,26 @@ module VFS
         
         # See <tt>File.atime</tt>.
         property :DAV, :lastaccessed, 
-                :set => Proc.new { |other| ::File.utime( other, ::File.mtime( @meta.file_path ), @meta.file_path ); other }, 
-                :get=>Proc.new { ::File.atime( @meta.file_path ) }
+                :write => Proc.new { |other| ::File.utime( other, ::File.mtime( @meta.file_path ), @meta.file_path ); other }, 
+                :read => Proc.new { ::File.atime( @meta.file_path ) }
                 
         # See <tt>File.ctime</tt>.
         property_reader( :DAV, :creationdate ){ 
             ret = ::File.ctime( @meta.file_path )
-            ret.__send__( :define_method, :to_s ){ self.xmlschema }
+            ret.instance_eval <<-end_eval
+                def to_s() self.xmlschema end
+            end_eval
             ret
         }
-        
+        Object
         # See <tt>File.mtime</tt>.
         property :DAV, :getlastmodified,
-                :set => lambda { |other| ::File.utime( Time.now, other, @meta.file_path ); other },
-                :get => lambda {
+                :write => lambda { |other| ::File.utime( Time.now, other, @meta.file_path ); other },
+                :read => lambda {
                     ret = ::File.mtime( @meta.file_path )
-                    ret.__send__( :define_method, :to_s ){ self.httpdate }
+                    ret.instance_eval <<-end_eval
+                        def to_s() self.httpdate end
+                    end_eval
                     ret
                 }
                 
