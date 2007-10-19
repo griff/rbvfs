@@ -2,6 +2,16 @@
 require 'rubygems'
 require 'webrick'
 require 'webrick/httpservlet/vfswebdavhandler'
+require 'vfs/dav'
+require 'vfs/file_node'
+
+class FileSystem < VFS::FileNode
+    meta do
+        namespace(:DAV, :'DAV:') do
+            include VFS::FilePathDAV
+        end
+    end
+end
 
 fs = VFS::FileSystem.new( VFS::File::Root.new( Dir.pwd ) )
 

@@ -6,7 +6,31 @@ require 'vfs'
 require 'active_record'
 
 module VFS
-    module Tagging
+  module Tagging
+    class TagFile
+      attr_reader :tag, :parent
+      def initialize(tag = nil, parent = nil)
+        @tag = tag
+        @parent = parent
+      end
+      
+      def tags
+        t = @tag ? [@tag] : []
+        t.concat @parent.tags if @parent
+        t
+      end
+      
+      def entries
+        t = self.tags
+        if t.length > 0
+        end
+      end
+      
+      def resolve(name)
+        TagFile.new(name, self)
+      end
+    end
+    
         class Node  < VFS::BaseNode
             def initialize( fs, name, parent )
                 @fs = fs

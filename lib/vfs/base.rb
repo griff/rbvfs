@@ -24,7 +24,7 @@ module VFS
             end_eval
             ret
         }
-        Object
+
         # See <tt>File.mtime</tt>.
         property :DAV, :getlastmodified,
                 :write => lambda { |other| ::File.utime( Time.now, other, @meta.file_path ); other },

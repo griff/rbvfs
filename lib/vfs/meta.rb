@@ -1,8 +1,64 @@
 require 'set'
+require 'vfs/inheritable_constants'
 
 module VFS
+    class MetaNamespace
+        attr_reader :meta
+        def initialize( meta )
+            @meta = meta
+        end
+        
+        def properties
+            
+        end
+        
+        def property_reader_missing( name )
+            @meta.property_reader_missing( self, name )
+        end
+        
+        def property_writer_missing( name, value )
+            @meta.property_writer_missing( self, name, value )
+        end
+        
+        def method_missing( sym, value=nil )
+            sym = sym.to_s
+            if sym =~ /^(.*)=$/
+                return property_writer_missing( $~[1], value )
+            else
+                return property_reader_missing( sym )
+            end
+        end
+    end
     
-    module Meta
+    class Meta
+        extend InheritableConstants
+        
+        class << self
+            def namespace( prefix, uri, classname=prefix, &block )
+                clazz = inheritable_inner_class( classname, ::VFS::MetaNamespace )
+                clazz.class_eval <<-end_eval
+                    def self.namespace
+                        :'#{uri}'
+                    end
+                
+                    def self.prefix
+                        :#{prefix}
+                    end
+                end_eval
+                clazz.class_eval(&block)
+                clazz
+            end
+        end
+
+        def property_reader_missing( ns, name )
+            raise NameError, "unknown property reader '#{name}' for namespace '#{ns.namespace}'", caller
+        end
+
+        def property_writer_missing( ns, name, value )
+            raise NameError, "unknown property writer '#{name}' for namespace '#{ns.namespace}'", caller
+        end
+        
+        
         class Namespace
             class << self
                 def property_check( name, method=nil, &block )

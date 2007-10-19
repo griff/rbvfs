@@ -1,34 +1,46 @@
 #  Created by Brian Olsen on 2007-03-14.
 #  Copyright (c) 2007. All rights reserved.
 module VFS
-    module MetaNamespaceModule
-        def self.included(base) #:nodoc:
-            base.extend(ClassMethods)
-            base.class_eval do
-              class << self
-                include Observable
-                alias_method_chain :instantiate, :callbacks
-              end
-
-              [:initialize, :create_or_update, :valid?, :create, :update, :destroy].each do |method|
-                alias_method_chain method, :callbacks
-              end
-            end
-
-            CALLBACKS.each do |method|
-              base.class_eval <<-"end_eval"
-                def self.#{method}(*callbacks, &block)
-                  callbacks << block if block_given?
-                  write_inheritable_array(#{method.to_sym.inspect}, callbacks)
-                end
-              end_eval
-            end
+  class MetaNamespace
+      class << self
+        def properties
+          @properties ||= []
         end
-        
-        module ClassMethods #:nodoc:
-            def included(base)
-                
-            end
-        end
-    end
+      end
+      
+      attr_reader :meta
+      
+      def initialize( meta )
+          @meta = meta
+      end
+      
+      def properties
+          self.class.properties
+      end
+      
+      def fetch(name)
+        self.__send__(name.to_sym)
+      end
+      
+      def store(name, value)
+        self.__send__("#{name}=", value)
+      end
+      
+      def property_reader_missing( name )
+          @meta.property_reader_missing( self, name )
+      end
+      
+      def property_writer_missing( name, value )
+          @meta.property_writer_missing( self, name, value )
+      end
+      
+      def method_missing( sym, value=nil )
+          sym = sym.to_s
+          if sym =~ /^(.*)=$/
+              return property_writer_missing( $~[1], value )
+          else
+              return property_reader_missing( sym )
+          end
+      end
+  end
 end

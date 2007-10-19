@@ -1,0 +1,3 @@
+module VFS::MetaNamespaceProxyModule
+  
+end
