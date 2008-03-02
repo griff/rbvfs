@@ -3,8 +3,19 @@
 module VFS
   class MetaNamespace
       class << self
-        def properties
+        def properties(*ary)
           @properties ||= []
+          if ary.size > 0
+            ary = ary.flatten.map{|e| e.to_sym}
+            @properties.concat(ary)
+          end
+          @properties.to_set
+        end
+        
+        def property(prop)
+          @properties ||= []
+          prop = prop.to_sym
+          @properties.push(prop)
         end
       end
       

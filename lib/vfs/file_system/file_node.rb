@@ -8,44 +8,16 @@ module VFS
           @owner = file_owner
         end
         
-        def namespaces
-          owner.real_mounts.collect{|m| m.meta.namespaces}.flatten.to_set.to_a
+        def mount_meta
+          rm = @owner.real_mounts
+          return [] if rm.size == 0
+          rm.first.meta
         end
         
-        def prefix_get(sym)
-          
-        end
-        
-        def prefix_defined?(sym)
-          
-        end
-        
-        def namespace_get(ns)
-          
-        end
-        
-        def namespace_defined?(ns)
-          
-        end
-        
-        def open
-          if block_given?
-            begin
-            ensure
-              self.close
-            end
-          end
-        end
-        
-        def close
-        end
-        
-        def []( ns )
-            namespace_get( ns )
-        end
-        
-        def method_missing(name)
-          
+        def method_missing(name, *args)
+          mm = mount_meta
+          return super unless mm.respond_to?(name)
+          mm.__send__(name, *args)
         end
       end
       
@@ -208,7 +180,7 @@ module VFS
       end
       
       def meta
-        @meta |= FileMeta.new(self)
+        @meta ||= FileMeta.new(self)
       end
     end
   end

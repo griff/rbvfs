@@ -36,9 +36,11 @@ class TestVFS < Test::Unit::TestCase
     empty_test(fs)
   end
 
+  # Test of a lookup before a root file handler is assigned
   def test_lateroot
     fs = VFS::FileSystem.new
     file = VFS::File.new( File.join( $root, 'tmp' ) )
+    
     t = fs.lookup('/hello/world/war')
     empty_test(fs)
     fs.root = file

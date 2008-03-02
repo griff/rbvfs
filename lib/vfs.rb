@@ -21,6 +21,6 @@ require 'vfs/meta_ng'
 # Extendable Virtual File System
 # 
 module VFS
-    extend Utils
+    include VFS::Utils
 end
 # vim: sts=4:sw=4:ts=4:et

@@ -1,33 +1,45 @@
 module VFS
   class Meta
-    extend InheritableConstants
+    include InheritableConstants
+    module FullThing
+      def get_namespace(prefix, uri)
+        if self.superclass.respond_to?(:get_namespace)
+          clazz = self.superclass.get_namespace(prefix,uri)
+        else
+          clazz = self.inheritable_inner_class( prefix, ::VFS::MetaNamespace )
+          clazz.class_eval <<-end_eval
+            def self.namespace
+                :'#{uri}'
+            end
+
+            def self.prefix
+                :#{prefix}
+            end
+
+            def namespace
+              self.class.namespace
+            end
+
+            def prefix
+              self.class.prefix
+            end
+          end_eval
+
+          self.module_eval <<-end_eval
+            def #{prefix} 
+                return prefix_get( :#{prefix} )
+            end
+          end_eval
+        end
+        clazz
+      end
+    end
+    
     
     class << self
-      def define_namespace(prefix, uri, &block)
-        clazz = self.inheritable_inner_class( prefix, ::VFS::MetaNamespace )
-        clazz.class_eval <<-end_eval
-          def self.namespace
-              :'#{uri}'
-          end
-      
-          def self.prefix
-              :#{prefix}
-          end
-          
-          def namespace
-            self.class.namespace
-          end
-          
-          def prefix
-            self.class.prefix
-          end
-        end_eval
-        
-        self.module_eval <<-end_eval
-          def #{prefix} 
-              return prefix_get( :#{prefix} )
-          end
-        end_eval
+      def define_namespace(prefix, uri, extends=nil, &block)
+        clazz = self.get_namespace( prefix, uri )
+        Array(extends).each{|ext| clazz.send(:include, ext) }
         clazz.class_eval(&block) if block_given?
         clazz
       end
@@ -36,11 +48,22 @@ module VFS
         ns = []
         self.inheritable_constants.each do |t|
           ns_module = self.inheritable_const_get(t)
-          if ns_module.respond_to? :namespace
+          if ns_module.respond_to?(:namespace) && ns_module.respond_to?(:prefix)
             ns << [ns_module.prefix, ns_module.namespace.to_sym]
           end
         end
-        ns.to_set.to_a
+        ns.to_set
+      end
+      
+      def properties
+        props = []
+        self.inheritable_constants.each do |t|
+          ns_module = self.inheritable_const_get(t)
+          if ns_module.respond_to?(:namespace) && ns_module.respond_to?(:properties)
+            props.concat ns_module.properties.map{|p| [ns_module.namespace, p.to_sym]}
+          end
+        end
+        props.to_set
       end
       
       def namespace_defined?( ns )
@@ -63,6 +86,10 @@ module VFS
     
     def namespaces
       self.class.namespaces
+    end
+    
+    def properties
+      self.class.properties
     end
     
     def prefix_defined?( prefix )

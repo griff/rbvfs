@@ -13,7 +13,11 @@ module VFS
     def directory?() ::FileTest.directory?( fs_filepath ) end
 
     def entries
-      ::FileTest.directory?(fs_filepath) ? ::Dir.entries( fs_filepath ) : []
+      if ::FileTest.directory?(fs_filepath)
+        ::Dir.entries( fs_filepath ).delete_if {|i| i=='..' || i=='.'}
+      else
+        []
+      end
     end
 
     def mkdir

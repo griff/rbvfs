@@ -4,6 +4,7 @@ module VFS
     
     def initialize(root=nil, meta_class = VFS::Meta)
       @meta_class = Class.new(meta_class)
+      @meta_class.extend(VFS::Meta::FullThing)
       @mounts = Array.new
       @cache = Hash.new
       @cache['/'] = FileNode.new(self)
@@ -77,8 +78,8 @@ module VFS
     end
     alias :[] :lookup
     
-    def define_namespace(prefix, namespace)
-      
+    def define_namespace(prefix, ns, extends=nil, &block)
+      self.meta_class.define_namespace(prefix, ns, extends, &block)
     end
   end
 end

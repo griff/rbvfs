@@ -29,7 +29,7 @@ module VFS
         
         module ClassMethods #:nodoc:
             def included(base)
-              base.properties.concat self::PROPERTIES
+              base.properties self::PROPERTIES
             end
         end
     end

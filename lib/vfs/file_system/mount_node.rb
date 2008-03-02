@@ -11,7 +11,7 @@ module VFS
         @cache = Hash.new
         @real_cache = Hash.new
         @restrictions = [].to_set
-        @meta_class = Class.new(filesystem.meta_class)
+        @meta_class = Class.new(fs.meta_class)
       end
       
       def ==(other)
