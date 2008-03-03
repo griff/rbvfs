@@ -1,4 +1,3 @@
-# $Id$
 # Copyright (c) 2007, Brian Olden
 # All rights reserved.
 # See LICENSE for permissions.

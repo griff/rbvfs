@@ -1,5 +1,3 @@
-# $Id$
-#
 # Version information.
 #
 # Author::    Brian Olsen (mailto:bro@rubyforge.org)
