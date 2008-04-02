@@ -1,5 +1,11 @@
+# Author::    Brian Olsen (mailto:bro@rubyforge.org)
+# Copyright:: Copyright (c) 2007, Brian Olsen
+# License::   VirtualFiles is free software distributed under a BSD style license.
+#             See LICENSE[file:../LICENSE.html] for permissions.
+
 $root = File.join(File.dirname(__FILE__), '..')
 $:.unshift File.join($root, 'lib')
+
 require 'test/unit'
 require 'vfs'
 require 'vfs/file_path_dav'
