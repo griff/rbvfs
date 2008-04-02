@@ -12,6 +12,11 @@ module VFS
         @real_cache = Hash.new
         @restrictions = [].to_set
         @meta_class = Class.new(fs.meta_class)
+        name = ('Mount' + (@path.length > 0 ? '/' : '') + @path.join('/'))
+        puts name
+        silence_warnings do
+          fs.meta_class.const_set( name.camelize, @meta_class )
+        end
       end
       
       def ==(other)
@@ -139,8 +144,8 @@ module VFS
         self.meta_class.dynamic_handler = handler
       end
       
-      def define_namespace(prefix, ns, &block)
-        self.meta_class.define_namespace(prefix, ns, &block)
+      def define_namespace(prefix, ns, options={}, &block)
+        self.meta_class.define_namespace(prefix, ns, options, &block)
       end
       
       class MountFileFakeItem

@@ -10,6 +10,18 @@
 #
 # For documentation, see module VFS.
 #
+
+unless defined?(ActiveSupport)
+  begin
+    $:.unshift(File.dirname(__FILE__) + "/../../activesupport/lib")  
+    require 'active_support'  
+  rescue LoadError
+    require 'rubygems'
+    gem 'activesupport'
+    require 'active_support'  
+  end
+end
+
 require 'set'
 require 'vfs/file_system'
 require 'vfs/file'

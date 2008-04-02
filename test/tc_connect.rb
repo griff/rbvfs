@@ -32,13 +32,12 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_noroot
-    fs = VFS::FileSystem.new
-    empty_test(fs)
+    empty_test(VFS::FileSystem.instance)
   end
 
   # Test of a lookup before a root file handler is assigned
   def test_lateroot
-    fs = VFS::FileSystem.new
+    fs = VFS::FileSystem.instance
     file = VFS::File.new( File.join( $root, 'tmp' ) )
     
     t = fs.lookup('/hello/world/war')
@@ -55,7 +54,7 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_connect
-    fs = VFS::FileSystem.new
+    fs = VFS::FileSystem.instance
     file = VFS::File.new( File.join( $root, 'tmp' ) )
     t = fs.lookup('/hello/world/war')
 
@@ -96,7 +95,7 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_connect_noroot
-    fs = VFS::FileSystem.new
+    fs = VFS::FileSystem.instance
     file = VFS::File.new( File.join( $root, 'tmp' ) )
     t = fs.lookup('/hello/world/war')
     
@@ -129,7 +128,7 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_lookup
-      fs = VFS::FileSystem.new
+      fs = VFS::FileSystem.instance
       rootfo = fs.lookup( '/' )
       assert_equal( rootfo, '/' )
       assert_equal( '/', rootfo )

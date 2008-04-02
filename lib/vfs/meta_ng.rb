@@ -1,46 +1,25 @@
 module VFS
   class Meta
     include InheritableConstants
-    module FullThing
-      def get_namespace(prefix, uri)
-        if self.superclass.respond_to?(:get_namespace)
-          clazz = self.superclass.get_namespace(prefix,uri)
-        else
-          clazz = self.inheritable_inner_class( prefix, ::VFS::MetaNamespace )
-          clazz.class_eval <<-end_eval
-            def self.namespace
-                :'#{uri}'
-            end
-
-            def self.prefix
-                :#{prefix}
-            end
-
-            def namespace
-              self.class.namespace
-            end
-
-            def prefix
-              self.class.prefix
-            end
-          end_eval
-
-          self.module_eval <<-end_eval
-            def #{prefix} 
-                return prefix_get( :#{prefix} )
-            end
-          end_eval
-        end
-        clazz
-      end
-    end
-    
     
     class << self
-      def define_namespace(prefix, uri, extends=nil, &block)
+
+      def define_namespace(prefix, uri, options={}, &extension)
+        options.assert_valid_keys(
+          :extend
+        )
+
         clazz = self.get_namespace( prefix, uri )
-        Array(extends).each{|ext| clazz.send(:include, ext) }
-        clazz.class_eval(&block) if block_given?
+        if block_given?
+          ext = create_extension_module(prefix, extension)
+          if options.include?(:extend)
+            options[:extend] = Array(options[:extend]).push(ext)
+          else
+            options[:extend] = ext
+          end
+        end
+        Array(options[:extend]).each{|ext| clazz.send(:include, ext) }
+
         clazz
       end
       
@@ -76,6 +55,38 @@ module VFS
         (prefix, n) = namespaces.detect { |prefix, n| n == ns }
         return nil unless prefix
         inheritable_const_get( prefix.to_sym )
+      end
+      
+      def get_namespace(prefix, uri)
+        if self.superclass.respond_to?(:get_namespace)
+          clazz = self.superclass.get_namespace(prefix,uri)
+        else
+          clazz = self.inheritable_inner_class( prefix, ::VFS::MetaNamespace )
+          clazz.class_eval(<<-end_eval, __FILE__, __LINE__+1)
+            def self.namespace
+                :'#{uri}'
+            end
+
+            def self.prefix
+                :#{prefix}
+            end
+
+            def namespace
+              self.class.namespace
+            end
+
+            def prefix
+              self.class.prefix
+            end
+          end_eval
+
+          self.module_eval(<<-end_eval, __FILE__, __LINE__+1)
+            def #{prefix} 
+                return prefix_get( :#{prefix} )
+            end
+          end_eval
+        end
+        clazz
       end
     end
     

@@ -1,17 +1,17 @@
+require 'singleton'
+
 module VFS
   class FileSystem
-    attr_reader :meta_class
-    
-    def initialize(root=nil, meta_class = VFS::Meta)
-      @meta_class = Class.new(meta_class)
-      @meta_class.extend(VFS::Meta::FullThing)
+    include Singleton
+
+    def initialize()
       @mounts = Array.new
       @cache = Hash.new
       @cache['/'] = FileNode.new(self)
-      self.root = root if root
-      if block_given?
-        yield self
-      end
+    end
+    
+    def meta_class
+      VFS::Meta
     end
     
     def root=( new_root )
@@ -78,7 +78,7 @@ module VFS
     end
     alias :[] :lookup
     
-    def define_namespace(prefix, ns, extends=nil, &block)
+    def define_namespace(prefix, ns, extends={}, &block)
       self.meta_class.define_namespace(prefix, ns, extends, &block)
     end
   end

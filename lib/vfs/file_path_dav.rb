@@ -19,21 +19,21 @@ module VFS
     
     def creationdate
       ret = ::File.ctime( self.meta.owner.fs_filepath )
-      ret.instance_eval <<-end_eval
+      ret.instance_eval do
         def to_s
           self.xmlschema
         end
-      end_eval
+      end
       ret
     end
     
     def getlastmodified
       ret = ::File.mtime( self.meta.owner.fs_filepath )
-      ret.instance_eval <<-end_eval
+      ret.instance_eval do
         def to_s
           self.httpdate
         end
-      end_eval
+      end
       ret
     end
     

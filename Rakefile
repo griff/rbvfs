@@ -33,6 +33,7 @@ spec = Gem::Specification.new do |spec|
   spec.summary = 'A very dynamic virtual filesystem API for ruby.'
   spec.name = PKG_NAME
   spec.version = PKG_VERSION
+  spec.requirements << 'activesupport >= 1.4.4'
 #  spec.requirements << 'Optional: mb-discid >= 0.1.2 (for calculating disc IDs)'
   spec.autorequire = spec.name
   spec.files = PKG_FILES

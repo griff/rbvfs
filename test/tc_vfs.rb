@@ -14,7 +14,8 @@ require 'pp'
 
 class TestVFS < Test::Unit::TestCase
   def test_simple_fs_meta
-    fs = VFS::FileSystem.new( VFS::File.new( File.join( $root, 'tmp' ) ) )
+    fs = VFS::FileSystem.instance
+    fs.root = VFS::File.new( File.join( $root, 'tmp' ) )
     
     fs.define_namespace(:dav, :'DAV:') do
       def hello
@@ -27,10 +28,13 @@ class TestVFS < Test::Unit::TestCase
     assert_equal [[:'DAV:', :hello]].to_set, fs.lookup('/files').meta.properties
     assert_equal [:hello].to_set, fs.lookup('/files').meta.dav.properties
     assert_equal "test", fs.lookup('/files').meta.dav.hello
+    pp fs.lookup('/files').meta.mount_meta.class.name
   end
   
   def test_fs_meta
-    fs = VFS::FileSystem.new( VFS::File.new( File.join( $root, 'tmp' ) ) )
+    fs = VFS::FileSystem.instance
+    fs.root = VFS::File.new( File.join( $root, 'tmp' ) )
+    
     fs.define_namespace(:dav, :'DAV:') do
       def hello
         "test"
@@ -53,8 +57,10 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_fs_include_meta
-    fs = VFS::FileSystem.new( VFS::File.new( File.join( $root, 'tmp' ) ) )
-    fs.define_namespace(:dav, :'DAV:', VFS::FilePathDAV)
+    fs = VFS::FileSystem.instance
+    fs.root = VFS::File.new( File.join( $root, 'tmp' ) )
+    
+    fs.define_namespace(:dav, :'DAV:', :extend=>VFS::FilePathDAV)
     
     p = %w( lastaccessed creationdate getlastmodified getcontentlength getetag getcontenttype resourcetype )
     t = fs.lookup('/files').meta.dav.properties.to_set
@@ -65,7 +71,7 @@ class TestVFS < Test::Unit::TestCase
   end
 
   def test_simple_root_meta
-    fs = VFS::FileSystem.new
+    fs = VFS::FileSystem.instance
     fs.connect('/', VFS::File.new( File.join( $root, 'tmp' ) ) ) do |m|
       m.define_namespace(:dav, :'DAV:') do
         def hello
@@ -82,9 +88,9 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_root_meta
-    fs = VFS::FileSystem.new
+    fs = VFS::FileSystem.instance
     fs.connect('/', VFS::File.new( File.join( $root, 'tmp' ) ) ) do |m|
-      m.define_namespace(:dav, :'DAV:') do
+      m.define_namespace(:dav, :'DAV:', :extend=>VFS::FilePathDAV) do
         def hello
           "test"
         end
@@ -107,11 +113,9 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_root_include_meta
-    fs = VFS::FileSystem.new
+    fs = VFS::FileSystem.instance
     fs.connect('/', VFS::File.new( File.join( $root, 'tmp' ) ) ) do |m|
-      m.define_namespace(:dav, :'DAV:') do
-        include VFS::FilePathDAV
-      end
+      m.define_namespace(:dav, :'DAV:', :extend=>VFS::FilePathDAV)
     end
     
     p = %w( lastaccessed creationdate getlastmodified getcontentlength getetag getcontenttype resourcetype )
@@ -121,38 +125,29 @@ class TestVFS < Test::Unit::TestCase
   end
   
   def test_tt
-    fs = VFS::FileSystem.new do |map|
-      map.connect('/', VFS::File.new(File.join($root, 'tmp' ) ) ) do |root|
-        root.define_namespace(:dav, :'DAV:') do
-          include VFS::FilePathDAV
-        end
-      end
-      map.define_namespace(:dav, :'DAV:') do
-        include VFS::SimpleDAVLock
-      end
+    fs = VFS::FileSystem.instance
+    fs.connect('/', VFS::File.new(File.join($root, 'tmp' ) ) ) do |root|
+      root.define_namespace(:dav, :'DAV:', :extend=>VFS::FilePathDAV)
     end
+    fs.define_namespace(:dav, :'DAV:', :extend=>VFS::SimpleDAVLock)
     
     
     #fs.lookup('/files/tmp').meta.namespace => ????
     #fs.lookup('/tmp').meta.dav.properties => ????
     #fs.lookup('/files/tmp').meta.dav.properties => ????
     
-    fs = VFS::FileSystem.new do |map|
-      map.root = VFS::File.new(File.join($root, 'tmp' ) )
-      map.define_namespace(:dav, :'DAV:') do
-        include VFS::FilePathDAV
-      end
+    fs = VFS::FileSystem.instance
+    fs.root = VFS::File.new(File.join($root, 'tmp' ) )
+    fs.define_namespace(:dav, :'DAV:', :extend=>VFS::FilePathDAV)
+    fs = VFS::FileSystem.instance
+    fs.root = VFS::File.new(File.join($root, 'tmp' ) )
+    fs.connect('/files', VFS::File.new(File.join($root, 'tmp'))) do |n|
+      n.restrict :create_dir, :delete_file
     end
-    fs = VFS::FileSystem.new do |map|
-      map.root = VFS::File.new(File.join($root, 'tmp' ) )
-      map.connect('/files', VFS::File.new(File.join($root, 'tmp'))) do |n|
-        n.restrict :create_dir, :delete_file
-      end
 #            map.connect '/tags', VFS::Tagging::TagFile.new
       
 #            map.dynamic_namespaces = VFS::Tagging::Tags.new
-      map.define_namespace(:dav, :'DAV:', [VFS::FilePathDAV,  VFS::SimpleDAVLock])
-    end
+    fs.define_namespace(:dav, :'DAV:', :extend=>[VFS::FilePathDAV,  VFS::SimpleDAVLock])
   end
 end
 # vim: sts=4:sw=4:ts=4:et

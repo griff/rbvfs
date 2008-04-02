@@ -31,6 +31,14 @@ module VFS
             def included(base)
               base.properties self::PROPERTIES
             end
+            
+            def property( name )
+              unless const_defined?(:PROPERTIES)
+                const_set( :PROPERTIES, [] )
+              end
+                
+              self::PROPERTIES << name.to_sym
+            end
         end
     end
 end
