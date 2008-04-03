@@ -1,3 +1,9 @@
+# Author:: Brian Olsen (mailto:griff@rubyforge.org)
+# Copyright:: Copyright (c) 2007, Brian Olsen
+# Documentation:: Author and Christian Theil Have
+# License::   rbvfs is free software distributed under a BSD style license.
+#             See LICENSE[file:../License.txt] for permissions.
+
 module VFS
   # Container module for classes implementing a filesystem based on the physical filesystem.
   # All the classes in this module are basicly wrappers that map the API of VFS into the file handeling
