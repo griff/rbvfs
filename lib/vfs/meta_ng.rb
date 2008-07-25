@@ -10,7 +10,7 @@ module VFS
     
     class << self
 
-      def define_namespace(prefix, uri, options={}, &extension)
+      def property_namespace(prefix, uri, options={}, &extension)
         options.assert_valid_keys(
           :extend
         )

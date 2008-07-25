@@ -9,6 +9,7 @@ module VFS
     class MountNode
       attr_reader :delegate
       attr_reader :filesystem
+      attr_reader :properties_class
       
       def initialize(fs, path, delegate)
         @filesytem = fs
@@ -17,11 +18,11 @@ module VFS
         @cache = Hash.new
         @real_cache = Hash.new
         @restrictions = [].to_set
-        @meta_class = Class.new(fs.meta_class)
+        @properties_class = Class.new(fs.properties_class)
         name = ('Mount' + (@path.length > 0 ? '/' : '') + @path.join('/'))
         puts name
         silence_warnings do
-          fs.meta_class.const_set( name.camelize, @meta_class )
+          fs.properties_class.const_set( name.camelize, @properties_class )
         end
       end
       
@@ -138,12 +139,8 @@ module VFS
         @restrictions.to_a
       end
       
-      def meta_class
-        @meta_class
-      end
-      
-      def meta
-        self.meta_class.new(@delegate)
+      def properties
+        self.properties_class.new(@delegate)
       end
       
       def dynamic_namespaces(handler)
@@ -204,12 +201,12 @@ module VFS
           MountFileDelegate.new(self, name, @delegate.resolve(name), @sort_key + 1)
         end
         
-        def meta_class
-          @parent.meta_class
+        def properties_class
+          @parent.properties_class
         end
         
-        def meta
-          self.meta_class.new(@delegate)
+        def properties
+          self.properties_class.new(@delegate)
         end
       end
     end

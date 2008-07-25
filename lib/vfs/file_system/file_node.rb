@@ -7,21 +7,21 @@
 module VFS
   class FileSystem
     class FileNode
-      class FileMeta
+      class FileProperties
         attr_reader :owner
         
         def initialize(file_owner)
           @owner = file_owner
         end
         
-        def mount_meta
+        def mount_properties
           rm = @owner.real_mounts
           return [] if rm.size == 0
-          rm.first.meta
+          rm.first.properties
         end
         
         def method_missing(name, *args)
-          mm = mount_meta
+          mm = mount_properties
           return super unless mm.respond_to?(name)
           mm.__send__(name, *args)
         end
@@ -185,8 +185,8 @@ module VFS
         end
       end
       
-      def meta
-        @meta ||= FileMeta.new(self)
+      def properties
+        @properties ||= FileProperties.new(self)
       end
     end
   end

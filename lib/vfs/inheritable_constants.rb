@@ -7,9 +7,9 @@
 module VFS::InheritableConstants
   def self.included(othermod)
     othermod.extend(ClassMethods)
-    othermod.alias_method_chain :const_defined?, :traversal
-    othermod.alias_method_chain :const_set, :traversal
-    othermod.alias_method_chain :const_get, :traversal
+    #othermod.alias_method_chain :const_defined?, :traversal
+    #othermod.alias_method_chain :const_set, :traversal
+    #othermod.alias_method_chain :const_get, :traversal
   end
   
   module ClassMethods

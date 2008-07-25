@@ -16,8 +16,8 @@ module VFS
       @cache['/'] = FileNode.new(self)
     end
     
-    def meta_class
-      VFS::Meta
+    def properties_class
+      VFS::Properties
     end
     
     def root=( new_root )
@@ -84,8 +84,8 @@ module VFS
     end
     alias :[] :lookup
     
-    def define_namespace(prefix, ns, extends={}, &block)
-      self.meta_class.define_namespace(prefix, ns, extends, &block)
+    def property_namespace(prefix, ns, extends={}, &block)
+      self.properties_class.property_namespace(prefix, ns, extends, &block)
     end
   end
 end
